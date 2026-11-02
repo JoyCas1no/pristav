@@ -23,4 +23,4 @@
 - Сохранение: ключ `pristav-save-v2`; настройки (звук, рекорд) `pristav-settings`.
 
 ## Публикация
-Исходник `pristav.html` без doctype (формат Artifact). Для статичного хостинга: `node tools/build.mjs` кладёт `dist/index.html` с doctype и viewport.
+Исходники в `src/` (head.html, data.js, engine.js); `node tools/build.mjs` собирает `pristav.html` (без doctype, формат Artifact) и `index.html`; не правь их руками. Для статичного хостинга: `node tools/build.mjs` собирает `index.html` с doctype и viewport.
