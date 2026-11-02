@@ -1,0 +1,521 @@
+<title>Пристав: смена</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+/* Концепт: смена пристава в вымышленном Заречинске, вид из глаз у двери должника; вертикальный экран телефона, бумажные формы на тёмном фоне. */
+:root {
+  --bg: #15171d;
+  --panel: #e9e1c9;
+  --ink: #23201a;
+  --muted: #6d6552;
+  --gold: #d9a441;
+  --red: #c4473a;
+  --green: #4f9a63;
+  --blue: #5a86b8;
+  --line: #3a3d48;
+  --font-display: "Press Start 2P", "Courier New", monospace;
+  --font-body: "VT323", "Courier New", monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--panel);
+  font-family: var(--font-body);
+  font-size: 21px;
+  line-height: 1.15;
+  padding-block: 8px;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+#app { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; min-height: 100%; }
+.hud { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-family: var(--font-display); font-size: 8px; }
+.hud div { background: #20232c; border: 2px solid var(--line); padding: 6px 4px; text-align: center; min-width: 0; }
+.hud b { display: block; font-size: 10px; color: var(--gold); margin-top: 4px; font-weight: normal; }
+.hud .bad b { color: var(--red); }
+.where { font-family: var(--font-display); font-size: 8px; color: #8d93a6; display: flex; justify-content: space-between; gap: 8px; }
+canvas#scene { width: 100%; image-rendering: pixelated; border: 3px solid var(--line); background: #000; display: block; aspect-ratio: 4 / 3; }
+.panel { background: var(--panel); color: var(--ink); border: 3px solid #1b1914; box-shadow: 4px 4px 0 #000; padding: 10px 12px; }
+.panel h2 { font-family: var(--font-display); font-size: 11px; line-height: 1.5; margin: 0 0 8px; color: #7a2f26; text-wrap: balance; }
+.panel p { margin: 0 0 8px; font-size: 22px; }
+.panel p.who { color: var(--muted); font-size: 19px; }
+.panel q { display: block; margin: 6px 0; padding-left: 8px; border-left: 4px solid var(--gold); quotes: none; }
+.actions { display: flex; flex-direction: column; gap: 6px; }
+button {
+  font-family: var(--font-display); font-size: 10px; line-height: 1.5; min-height: 48px; padding: 8px 10px; text-align: left;
+  color: var(--panel); background: #2c3040; border: 3px solid #0c0d11; box-shadow: 3px 3px 0 #000; cursor: pointer;
+}
+button:hover { background: #363b50; }
+button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+button.primary { background: var(--gold); color: #1c1608; }
+button.danger { background: #6d2a24; }
+button:disabled { opacity: .45; cursor: default; }
+.docs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.doc { background: #f7f2e1; border: 2px dashed #8d8468; padding: 6px 8px; font-size: 20px; min-width: 0; overflow-wrap: anywhere; }
+.doc h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 8px; color: #7a2f26; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+.item { min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 4px; text-align: center; background: #f3ecd4; color: var(--ink); border: 3px solid #1b1914; box-shadow: 2px 2px 0 #000; font-family: var(--font-body); font-size: 18px; line-height: 1; }
+.item canvas { width: 48px; height: 48px; image-rendering: pixelated; }
+.item.on { background: var(--gold); }
+.item small { font-family: var(--font-body); font-size: 17px; color: #5b543f; }
+.item.on small { color: #3a2c05; }
+.note { background: #f3ecd4; border: 2px solid #8d8468; padding: 6px 8px; font-size: 19px; margin-bottom: 8px; }
+.tag { font-family: var(--font-display); font-size: 8px; padding: 3px 5px; border: 2px solid; display: inline-block; margin: 0 4px 4px 0; }
+.tag.ok { color: #2f6b40; border-color: #2f6b40; }
+.tag.bad { color: #9b2f25; border-color: #9b2f25; }
+.bars { display: grid; gap: 8px; margin-bottom: 8px; }
+.bar { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 20px; }
+.bar i { grid-column: 1 / -1; height: 10px; background: #cfc6a8; border: 2px solid #1b1914; position: relative; display: block; }
+.bar i span { position: absolute; inset: 0 auto 0 0; background: var(--green); }
+.bar.low i span { background: var(--red); }
+@media (prefers-reduced-motion: no-preference) { .panel { animation: rise .18s steps(3); } }
+@keyframes rise { from { transform: translateY(6px); opacity: .4; } }
+</style>
+
+<div id="app">
+  <div class="where"><span id="whereL"></span><span id="whereR"></span></div>
+  <div class="hud" id="hud"></div>
+  <canvas id="scene" width="96" height="72"></canvas>
+  <div class="panel" id="panel"></div>
+  <div class="actions" id="actions"></div>
+</div>
+
+<script>
+"use strict";
+// ---------- сохранение ----------
+const SAVE = "pristav-save-v1";
+function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE)); } catch (e) { return null; } }
+function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
+function clearSave() { try { localStorage.removeItem(SAVE); } catch (e) {} }
+
+// ---------- пиксельные значки вещей (16x16: x, y, w, h, цвет) ----------
+const ICONS = {
+  tv: [[1,3,14,9,"#2b2b33"],[2,4,12,7,"#5fb3c4"],[5,12,6,2,"#2b2b33"]],
+  fridge: [[4,1,8,14,"#d9dde2"],[4,6,8,1,"#8a9099"],[10,3,1,2,"#8a9099"],[10,9,1,3,"#8a9099"]],
+  laptop: [[3,3,10,7,"#2b2b33"],[4,4,8,5,"#7fc4e0"],[1,11,14,2,"#9aa0a8"]],
+  sewing: [[2,10,12,3,"#3a3a44"],[3,5,4,5,"#c9c9d0"],[7,5,5,2,"#c9c9d0"],[11,7,1,4,"#e0e0e8"]],
+  pills: [[4,6,8,8,"#e6e6ee"],[4,4,8,2,"#d4483a"],[6,8,4,2,"#d4483a"]],
+  crib: [[2,5,12,1,"#b8864e"],[2,12,12,1,"#b8864e"],[2,5,1,8,"#b8864e"],[13,5,1,8,"#b8864e"],[4,6,1,6,"#d9b07a"],[7,6,1,6,"#d9b07a"],[10,6,1,6,"#d9b07a"]],
+  carpet: [[1,4,14,9,"#a33a3a"],[3,6,10,5,"#e0b24a"],[5,8,6,1,"#a33a3a"]],
+  guitar: [[6,8,6,6,"#c98a3e"],[8,10,2,2,"#2b2b33"],[8,1,2,8,"#7a4a22"]],
+  phone: [[5,2,6,12,"#2b2b33"],[6,3,4,9,"#7fc4e0"]],
+  kettle: [[4,6,8,7,"#c9ccd2"],[12,7,2,3,"#c9ccd2"],[6,4,4,2,"#8a9099"]],
+  console: [[2,6,12,5,"#e8e8ee"],[3,7,4,3,"#2b2b33"],[11,8,2,1,"#5a8ad8"]],
+  pc: [[3,2,7,12,"#2b2b33"],[4,3,5,3,"#b455d8"],[5,8,3,1,"#5fd88a"],[11,5,3,6,"#2b2b33"]],
+  watch: [[5,2,6,3,"#7a4a22"],[5,11,6,3,"#7a4a22"],[4,5,8,6,"#e0b24a"],[5,6,6,4,"#f4f0e0"]],
+  washer: [[3,2,10,12,"#e0e4ea"],[5,6,6,6,"#5a8ad8"],[6,7,4,4,"#bfe0f0"]],
+  chain: [[3,4,10,1,"#e0b24a"],[2,5,1,4,"#e0b24a"],[13,5,1,4,"#e0b24a"],[4,9,8,1,"#e0b24a"]],
+  sneakers: [[2,8,12,5,"#f4f4f4"],[2,12,12,2,"#d84a4a"],[3,6,5,3,"#f4f4f4"]],
+  coffee: [[3,2,10,12,"#8a4a3a"],[5,4,6,3,"#e8e0c8"],[6,9,4,4,"#2b2b33"]]
+};
+function drawIcon(canvas, key) {
+  const g2 = canvas.getContext("2d");
+  g2.clearRect(0, 0, 16, 16);
+  for (const [x, y, w, h, c] of ICONS[key] || []) { g2.fillStyle = c; g2.fillRect(x, y, w, h); }
+}
+
+// ---------- дела ----------
+// w в рублях, exempt: нельзя изымать по закону; note показывается при осмотре вещи
+const CASES = [
+  {
+    id: "krupina", name: "Крупина Тамара Ивановна", born: 1953, debt: 18400, creditor: "УК «Заречинская»", hardship: 2,
+    person: { skin: "#e6b99a", hair: "#d8d8dc", style: "bun", shirt: "#7a5a8c", extra: "scarf" },
+    intro: "Дверь с тремя замками. За цепочкой видна пожилая женщина в вязаной кофте.",
+    line: "Я пенсию получаю пятого числа. Подождите немного, я всё отдам. Холодильник не трогайте, у меня лекарства.",
+    hint: "Пенсия 16 900 ₽, из них 4 000 уходит на лекарства. Подрабатывает шитьём, на машинке.",
+    items: [
+      { k: "tv", n: "Телевизор", w: 3500, exempt: false, note: "Старый ламповый, работает, но показывает только первый канал." },
+      { k: "fridge", n: "Холодильник", w: 9000, exempt: true, note: "Предмет быта первой необходимости. Изъятию не подлежит." },
+      { k: "pills", n: "Лекарства", w: 2000, exempt: true, note: "Сердечные препараты. Изымать нельзя." },
+      { k: "carpet", n: "Ковёр", w: 2100, exempt: false, note: "Висит на стене ещё с советских времён. Ценность скорее семейная." },
+      { k: "sewing", n: "Швейная машинка", w: 4000, exempt: true, note: "Единственный источник подработки: орудие труда, изъятию не подлежит." },
+      { k: "kettle", n: "Чайник", w: 700, exempt: true, note: "Кухонная утварь, необходимая в быту." }
+    ]
+  },
+  {
+    id: "volkov", name: "Волков Артём Сергеевич", born: 1996, debt: 64000, creditor: "ООО «Зерно и Ко»", hardship: 1,
+    person: { skin: "#f0c8a8", hair: "#3a2a1c", style: "short", shirt: "#3f7d6a", extra: "glasses" },
+    intro: "Квартира над кофейным фургоном. Открывает парень в фартуке с логотипом «Бодрый Зареч».",
+    line: "Деньги вернуть хочу, просто поставщик задрал цену. Ноутбук не берите: на нём вся моя бухгалтерия, это моя работа.",
+    hint: "Самозанятый, справка есть: ноутбук признан рабочим инструментом. Кофемашина и приставка куплены не для работы.",
+    items: [
+      { k: "laptop", n: "Ноутбук", w: 14000, exempt: true, note: "Подтверждён справкой самозанятого как рабочий инструмент." },
+      { k: "coffee", n: "Кофемашина", w: 28000, exempt: false, note: "Профессиональная, куплена в рассрочку и до сих пор не оплачена." },
+      { k: "console", n: "Приставка", w: 22000, exempt: false, note: "Новая, с двумя джойстиками и игрой про приставов." },
+      { k: "sneakers", n: "Кроссовки", w: 8000, exempt: false, note: "Коллекционные, в коробке." },
+      { k: "phone", n: "Телефон", w: 9000, exempt: true, note: "Нужен ему для связи с клиентами. По закону в первую очередь не изымается." },
+      { k: "kettle", n: "Чайник", w: 900, exempt: true, note: "Кухонная утварь." }
+    ]
+  },
+  {
+    id: "lebedev", name: "Лебедев Сергей Петрович", born: 1979, debt: 52000, creditor: "Банк «Северный путь»", hardship: 1, wrongPerson: true,
+    passport: { name: "Лебедев Сергей Павлович", born: 1981 },
+    person: { skin: "#e8c0a0", hair: "#6a5a4a", style: "short", shirt: "#8a8a92", extra: "tie" },
+    intro: "Мужчина в тельняшке с газетой. На паспорте виден штамп прописки, но в деле другое отчество.",
+    line: "Какой кредит? Я ничего не брал! Я вообще пенсионер по выслуге, дайте мне спокойно дожить.",
+    hint: "В банке он значится как «Лебедев С. П.», тёзка из соседнего района. Сверьте отчество и год рождения.",
+    items: [
+      { k: "tv", n: "Телевизор", w: 12000, exempt: false, note: "Большой, но к долгу отношения не имеет." },
+      { k: "fridge", n: "Холодильник", w: 9000, exempt: true, note: "Предмет быта." },
+      { k: "guitar", n: "Гитара", w: 6000, exempt: false, note: "Играет по вечерам во дворе." },
+      { k: "washer", n: "Стиральная машина", w: 8000, exempt: true, note: "Бытовая необходимость." }
+    ]
+  },
+  {
+    id: "dyakonov", name: "Дьяконов Игорь Валерьевич", born: 1987, debt: 120000, creditor: "МФО «Быстрый рубль»", hardship: 0,
+    person: { skin: "#f2c9a8", hair: "#1c1c22", style: "short", shirt: "#b04545", extra: "tie" },
+    intro: "Евроремонт, на вешалке кожаная куртка, у подъезда стоит блестящий седан. Хозяин встречает в халате.",
+    line: "Временные трудности, понимаете. Жена в больнице, денег нет. Могу извиниться и всё.",
+    hint: "Жена в санатории на Кипре, фото в соцсети. Кроватка в комнате не детская, а внучкина: по выходным у него ночует внучка.",
+    items: [
+      { k: "pc", n: "Игровой ПК", w: 60000, exempt: false, note: "Топовая сборка, три монитора." },
+      { k: "watch", n: "Часы", w: 80000, exempt: false, note: "Швейцарские, на витрине." },
+      { k: "tv", n: "Телевизор 65\"", w: 40000, exempt: false, note: "Подвешен напротив дивана." },
+      { k: "crib", n: "Детская кроватка", w: 7000, exempt: true, note: "Внучка ночует по выходным. Изымать нельзя." },
+      { k: "kettle", n: "Чайник", w: 1200, exempt: true, note: "Кухонная утварь." }
+    ]
+  },
+  {
+    id: "melnik", name: "Мельник Оксана Петровна", born: 1991, debt: 31200, creditor: "Банк «Северный путь»", hardship: 2,
+    person: { skin: "#f0c4a4", hair: "#7a4a2a", style: "long", shirt: "#c88a3a", extra: "none" },
+    intro: "Из квартиры слышен детский шум. Дверь открывает уставшая женщина с младенцем на руках.",
+    line: "Я одна с тремя, садик, смены на складе. Заберёте стиралку, я детей не отстираю. Дайте месяц, пожалуйста.",
+    hint: "Работает на складе в ночь, зарплата 28 000 ₽. Алименты не платят уже год.",
+    items: [
+      { k: "crib", n: "Детская кроватка", w: 7000, exempt: true, note: "Детская мебель. Изъятию не подлежит." },
+      { k: "washer", n: "Стиральная машина", w: 8000, exempt: true, note: "Бытовая необходимость при троих детях." },
+      { k: "laptop", n: "Ноутбук", w: 15000, exempt: true, note: "Старший сын учится онлайн, нужен для школы." },
+      { k: "chain", n: "Золотая цепочка", w: 2000, exempt: false, note: "Единственное украшение, подарок мамы." },
+      { k: "tv", n: "Телевизор", w: 5000, exempt: false, note: "Дети смотрят мультики после садика." }
+    ]
+  }
+];
+
+// ---------- дежурство в суде ----------
+const VISITORS = [
+  {
+    name: "Мужчина в куртке", look: { skin: "#e8c0a0", hair: "#3a2a1c", style: "short", shirt: "#4a5a42", extra: "none" },
+    intro: "Спешит на заседание, нервно держит сумку. Рамка металлодетектора пищит.",
+    say: "Опаздываю, пропустите, я свидетель.",
+    bag: ["Связка ключей", "Складной нож, 8 см", "Пачка сигарет"], danger: true
+  },
+  {
+    name: "Пожилой мужчина", look: { skin: "#e6b99a", hair: "#d8d8dc", style: "short", shirt: "#7a6a52", extra: "glasses" },
+    intro: "Идёт с пакетом, стучит палкой. Рамка молчит, но он долго ищет повестку.",
+    say: "Дочка, я за внучку, это такое дело... У меня с собой только бумаги.",
+    bag: ["Бутылка воды", "Таблетки", "Папка с документами"], danger: false
+  },
+  {
+    name: "Девушка с портфелем", look: { skin: "#f0c4a4", hair: "#2a1c1c", style: "long", shirt: "#304a7a", extra: "none" },
+    intro: "Адвокат в деловом костюме, торопится. Рамка молчит, но из сумочки пахнет перцем.",
+    say: "Я представитель стороны, заседание уже началось. Не задерживайте.",
+    bag: ["Ноутбук и зарядка", "Газовый баллончик в косметичке", "Удостоверение адвоката"], danger: true
+  }
+];
+
+// ---------- расписание смены ----------
+const SCHEDULE = [
+  { t: "debt", i: 0, time: "09:00" }, { t: "debt", i: 1, time: "10:30" },
+  { t: "court", time: "12:00" },
+  { t: "debt", i: 2, time: "14:00" }, { t: "debt", i: 3, time: "15:30" }, { t: "debt", i: 4, time: "17:00" }
+];
+const PLAN = 100000;
+
+// ---------- состояние ----------
+let S = null;
+function fresh() { return { step: 0, phase: "door", picks: [], vis: 0, tone: null, toneText: "", note: "", result: null, stats: { cash: 0, law: 0, heart: 0, safety: 0, complaints: 0 } }; }
+function stat(k, d) { S.stats[k] += d; }
+
+const $ = (s) => document.querySelector(s);
+const fmt = (n) => n.toLocaleString("ru-RU") + " ₽";
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+// ---------- рисование ----------
+const cv = $("#scene"), g = cv.getContext("2d");
+g.imageSmoothingEnabled = false;
+function R(x, y, w, h, c) { g.fillStyle = c; g.fillRect(x, y, w, h); }
+function person(p, ox, oy) {
+  R(ox - 14, oy + 20, 28, 30, p.shirt);
+  R(ox - 14, oy + 20, 28, 3, "rgba(0,0,0,.2)");
+  if (p.extra === "scarf") R(ox - 9, oy + 18, 18, 4, "#d04a4a");
+  if (p.extra === "tie") R(ox - 2, oy + 22, 4, 14, "#1a1a22");
+  R(ox - 8, oy, 16, 20, p.skin);
+  R(ox - 8, oy, 16, 2, "rgba(0,0,0,.08)");
+  if (p.style === "bun") { R(ox - 9, oy - 3, 18, 6, p.hair); R(ox - 4, oy - 7, 8, 5, p.hair); }
+  else if (p.style === "long") { R(ox - 9, oy - 3, 18, 6, p.hair); R(ox - 10, oy - 1, 4, 24, p.hair); R(ox + 6, oy - 1, 4, 24, p.hair); }
+  else { R(ox - 9, oy - 3, 18, 6, p.hair); }
+  R(ox - 5, oy + 8, 3, 3, "#1a1a22"); R(ox + 2, oy + 8, 3, 3, "#1a1a22");
+  R(ox - 3, oy + 15, 6, 1, "#7a3a32");
+  if (p.extra === "glasses") { R(ox - 6, oy + 7, 5, 1, "#2b2b33"); R(ox + 1, oy + 7, 5, 1, "#2b2b33"); R(ox - 6, oy + 7, 1, 5, "#2b2b33"); R(ox + 5, oy + 7, 1, 5, "#2b2b33"); }
+}
+function door(p) {
+  R(0, 0, 96, 72, "#4a4a58");
+  for (let x = 0; x < 96; x += 8) R(x, 0, 1, 72, "rgba(0,0,0,.12)");
+  R(10, 4, 76, 68, "#2a1f19"); R(14, 8, 68, 64, "#1a1613");
+  R(0, 60, 96, 12, "#3a3430");
+  if (p) person(p, 48, 26);
+  R(14, 8, 3, 64, "#6a4a30"); R(79, 8, 3, 64, "#6a4a30"); R(14, 8, 68, 3, "#6a4a30");
+  R(20, 24, 2, 14, "#c8c8d0"); R(18, 22, 6, 2, "#e0e0e8");
+}
+function room() {
+  R(0, 0, 96, 72, "#7d6f5e");
+  for (let y = 0; y < 48; y += 6) R(0, y, 96, 1, "rgba(0,0,0,.1)");
+  R(0, 48, 96, 24, "#5a4a3a"); for (let x = 0; x < 96; x += 12) R(x, 48, 1, 24, "rgba(0,0,0,.2)");
+  R(60, 8, 26, 24, "#3a2a1e"); R(62, 10, 22, 20, "#78a8d0"); R(72, 10, 2, 20, "#3a2a1e"); R(62, 19, 22, 2, "#3a2a1e");
+  R(8, 36, 40, 12, "#6a3a30"); R(8, 30, 40, 6, "#8a4a3a");
+  R(16, 40, 14, 20, "rgba(0,0,0,.15)");
+}
+function court(p) {
+  R(0, 0, 96, 72, "#aaa294"); R(0, 0, 96, 6, "#6a6252");
+  for (let x = 6; x < 96; x += 20) R(x, 6, 6, 40, "#c8c0b0");
+  R(0, 46, 96, 26, "#7a7468"); for (let x = 0; x < 96; x += 16) R(x, 46, 1, 26, "rgba(0,0,0,.2)");
+  R(20, 18, 56, 4, "#2a2e3a"); R(20, 18, 4, 36, "#2a2e3a"); R(72, 18, 4, 36, "#2a2e3a");
+  R(40, 14, 16, 4, "#d04a3a");
+  if (p) person(p, 48, 22);
+}
+function street() {
+  R(0, 0, 96, 72, "#1a1c28");
+  for (let i = 0; i < 14; i++) R((i * 37) % 96, (i * 17) % 30, 1, 1, "#f0e8c0");
+  R(6, 22, 24, 50, "#272b3c"); R(34, 14, 28, 58, "#2f3447"); R(66, 26, 24, 46, "#252a3a");
+  for (let y = 18; y < 68; y += 8) { R(40, y, 4, 4, "#e8c860"); R(50, y, 4, 4, "#e8c860"); R(10, y + 6, 3, 4, "#e8c860"); R(72, y + 2, 3, 4, "#e8c860"); }
+  R(0, 66, 96, 6, "#101218"); R(28, 50, 4, 16, "#3a3d4a");
+}
+function desk() {
+  R(0, 0, 96, 72, "#2c3040"); R(0, 44, 96, 28, "#5a4030");
+  R(8, 20, 28, 30, "#e0d8b8"); R(12, 26, 20, 2, "#7a7458"); R(12, 32, 20, 2, "#7a7458"); R(12, 38, 14, 2, "#7a7458");
+  R(48, 10, 40, 34, "#8a8a98"); R(50, 12, 36, 24, "#5fb3c4");
+  R(60, 44, 20, 4, "#2a2a30");
+}
+
+// ---------- верхняя панель ----------
+function hud() {
+  const a = S.stats;
+  const h = [
+    ["Взыскано", fmt(a.cash), false],
+    ["Закон", String(a.law), a.law < 0],
+    ["Совесть", String(a.heart), a.heart < 0],
+    ["Жалобы", String(a.complaints), a.complaints > 2]
+  ];
+  $("#hud").innerHTML = h.map(([t, v, bad]) => `<div class="${bad ? "bad" : ""}">${t}<b>${esc(v)}</b></div>`).join("");
+}
+function where() {
+  const st = SCHEDULE[S.step];
+  $("#whereL").textContent = "Заречинск · ОПВ № 7";
+  $("#whereR").textContent = st ? `Смена · ${st.time}` : "Смена окончена";
+}
+
+// ---------- помощники экрана ----------
+function setActions(list) {
+  const el = $("#actions"); el.innerHTML = "";
+  for (const a of list) {
+    const b = document.createElement("button");
+    b.textContent = a.label; if (a.cls) b.className = a.cls; if (a.disabled) b.disabled = true;
+    b.addEventListener("click", a.fn); el.appendChild(b);
+  }
+}
+function panel(html) { $("#panel").innerHTML = html; }
+
+// ---------- главное меню ----------
+function menu() {
+  S = null; street();
+  $("#hud").innerHTML = ""; $("#whereL").textContent = "Заречинск"; $("#whereR").textContent = "ОПВ № 7";
+  panel(`<h2>ПРИСТАВ: СМЕНА</h2>
+    <p>Один рабочий день. Пять должников, дежурство в здании суда и список, который никогда не кончается.</p>
+    <p class="who">Все персонажи и организации вымышлены. 16+: чёрный юмор, без жестокости.</p>`);
+  const saved = loadSave();
+  const list = [];
+  const canContinue = saved && typeof saved.step === "number" && saved.step < SCHEDULE.length;
+  if (canContinue) list.push({ label: "Продолжить смену", cls: "primary", fn: () => { S = saved; run(); } });
+  list.push({ label: canContinue ? "Новая смена" : "Начать смену", cls: canContinue ? "" : "primary", fn: () => { S = fresh(); run(); } });
+  list.push({ label: "Как играть", fn: howTo });
+  setActions(list);
+}
+function howTo() {
+  street();
+  panel(`<h2>КАК ИГРАТЬ</h2>
+    <p>У каждого должника три шага: поговорить у двери, сверить документы, описать имущество.</p>
+    <p>Нельзя изымать то, что закон защищает: единственное жильё, бытовую технику, лекарства, детские вещи и рабочие инструменты. За нарушение растут жалобы.</p>
+    <p>В суде ловите опасные вещи, но не мучайте честных людей досмотром.</p>
+    <p class="who">Цель: собрать ${esc(fmt(PLAN))}, не нарушить закон и не потерять совесть.</p>`);
+  setActions([{ label: "Назад", cls: "primary", fn: menu }]);
+}
+
+// ---------- основной цикл ----------
+function run() {
+  writeSave(); hud(); where();
+  const st = SCHEDULE[S.step];
+  if (!st) return summary();
+  if (st.t === "debt") debtScreen(CASES[st.i]); else courtScreen();
+}
+
+// ----- должник -----
+function debtScreen(c) {
+  if (S.phase === "door") {
+    door(c.person);
+    panel(`<h2>${esc(c.name)}</h2>
+      <p class="who">Долг: ${esc(fmt(c.debt))} · Взыскатель: ${esc(c.creditor)}</p>
+      <p>${esc(c.intro)}</p><q>${esc(c.line)}</q>`);
+    setActions([
+      { label: "Строго по протоколу", fn: () => tone(c, "strict") },
+      { label: "Поговорить по-человечески", fn: () => tone(c, "kind") },
+      { label: "Надавить: «Откройте или взломаем»", cls: "danger", fn: () => tone(c, "hard") }
+    ]);
+  } else if (S.phase === "talk") {
+    door(c.person);
+    panel(`<h2>${esc(c.name)}</h2><p>${esc(S.toneText)}</p><div class="note">Заметка: ${esc(c.hint)}</div>`);
+    setActions([{ label: "К документам", cls: "primary", fn: () => { S.phase = "docs"; run(); } }]);
+  } else if (S.phase === "docs") docs(c);
+  else if (S.phase === "inspect") inspect(c);
+  else if (S.phase === "result") resultScreen();
+}
+function tone(c, t) {
+  if (t === "strict") { S.toneText = "Вы представились и зачитали постановление. Должник слушает молча, но не спорит."; }
+  if (t === "kind") { stat("heart", 1); S.toneText = "Вы присели на табурет и выслушали. Должник заметно расслабился и показал документы без споров."; }
+  if (t === "hard") { stat("heart", -1); stat("law", -1); stat("complaints", 1); S.toneText = "Вы пригрозили вскрытием двери. Должник побледнел, но жалобу потом точно напишет."; }
+  S.tone = t; S.phase = "talk"; run();
+}
+function docs(c) {
+  door(c.person);
+  const p = c.passport || { name: c.name, born: c.born };
+  panel(`<h2>СВЕРКА ДОКУМЕНТОВ</h2>
+    <div class="docs">
+      <div class="doc"><h3>В ДЕЛЕ</h3>${esc(c.name)}<br>Год рождения: ${c.born}<br>Долг: ${esc(fmt(c.debt))}</div>
+      <div class="doc"><h3>ПАСПОРТ</h3>${esc(p.name)}<br>Год рождения: ${p.born}<br>Прописка: Заречинск</div>
+    </div>
+    <p>Данные совпадают?</p>`);
+  setActions([
+    { label: "Данные совпадают", fn: () => {
+      if (c.wrongPerson) { stat("law", -1); S.note = "Вы пропустили несовпадение. Любое изъятие теперь будет незаконным."; } else S.note = "";
+      S.phase = "inspect"; run(); } },
+    { label: "Не тот человек", cls: "danger", fn: () => {
+      if (c.wrongPerson) { stat("law", 2); stat("heart", 1); S.result = { title: "ТЁЗКА НАЙДЕН", text: "Вы вернули дело в банк: это другой Лебедев. Должник пожал вам руку и впервые за неделю улыбнулся.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; }
+      else { stat("complaints", 1); stat("law", -1); S.note = "Вы зря заподозрили подлог, потеряли время и получили выговор."; S.phase = "inspect"; }
+      run(); } }
+  ]);
+}
+function inspect(c) {
+  room();
+  panel(`<h2>ОПИСЬ ИМУЩЕСТВА</h2>
+    ${S.note ? `<div class="note">${esc(S.note)}</div>` : ""}
+    <p>Долг: ${esc(fmt(c.debt))}. Выберите вещи для изъятия, нажатие показывает комментарий.</p>
+    <div class="grid" id="grid"></div>
+    <div class="note" id="note">Нажмите на вещь, чтобы осмотреть её.</div>
+    <p id="sum"></p>`);
+  const grid = $("#grid");
+  c.items.forEach((it, idx) => {
+    const b = document.createElement("button"); b.className = "item" + (S.picks.includes(idx) ? " on" : "");
+    const cnv = document.createElement("canvas"); cnv.width = 16; cnv.height = 16; drawIcon(cnv, it.k);
+    const t = document.createElement("div"); t.textContent = it.n;
+    const w = document.createElement("small"); w.textContent = fmt(it.w);
+    b.append(cnv, t, w);
+    b.addEventListener("click", () => {
+      const at = S.picks.indexOf(idx); if (at >= 0) S.picks.splice(at, 1); else S.picks.push(idx);
+      b.classList.toggle("on"); $("#note").textContent = it.note; refresh(c); writeSave();
+    });
+    grid.appendChild(b);
+  });
+  refresh(c);
+}
+function refresh(c) {
+  const sel = S.picks.map((i) => c.items[i]);
+  const sum = sel.reduce((a, b) => a + b.w, 0);
+  $("#sum").textContent = `Выбрано: ${sel.length} шт., ${fmt(sum)} из ${fmt(c.debt)}`;
+  setActions([
+    { label: sel.length ? "Изъять выбранное" : "Ничего не выбрано", cls: "primary", disabled: !sel.length, fn: () => seize(c) },
+    { label: "Дать отсрочку на 14 дней", fn: () => defer(c) },
+    { label: "Закрыть дело без изъятия", cls: "danger", fn: () => closeCase(c) }
+  ]);
+}
+function seize(c) {
+  const sel = S.picks.map((i) => c.items[i]);
+  const bad = sel.filter((i) => i.exempt);
+  const worth = Math.min(c.debt, sel.reduce((a, b) => a + b.w, 0));
+  const tags = []; let cash = worth; let text;
+  if (c.wrongPerson) { stat("law", -3); stat("complaints", 2); cash = 0; text = "Вы изъяли имущество у человека, который ничего не должен. Завтра об этом напишут в новостях."; tags.push(["bad", "Закон −3"], ["bad", "Жалобы +2"]); }
+  else {
+    if (bad.length) { stat("law", -2 * bad.length); stat("complaints", bad.length); cash = Math.max(0, worth - bad.reduce((a, b) => a + b.w, 0)); tags.push(["bad", `Закон −${2 * bad.length}`], ["bad", `Жалобы +${bad.length}`]); text = "Среди вещей оказались защищённые законом: " + bad.map((i) => i.n.toLowerCase()).join(", ") + ". Придётся вернуть и объясняться."; }
+    else { stat("law", 1); tags.push(["ok", "Закон +1"]); text = "Опись составлена по закону. Вещи погружены в служебную машину."; }
+    if (c.hardship > 0 && sel.some((i) => !i.exempt)) { stat("heart", -c.hardship); tags.push(["bad", `Совесть −${c.hardship}`]); text += " Должник смотрел вам вслед из окна."; }
+  }
+  stat("cash", cash); S.result = { title: "ИЗЪЯТИЕ", text, cash, tags }; S.phase = "result"; run();
+}
+function defer(c) {
+  const tags = []; let text;
+  if (c.hardship === 0) { stat("law", -1); text = "Отсрочка выдана. Через три дня должник блокирует телефон. Вас обвёл вокруг пальца человек в халате."; tags.push(["bad", "Обманули"], ["bad", "Закон −1"]); }
+  else { stat("heart", 1); text = "Отсрочка оформлена, взыскатель недоволен, но человек получил передышку."; tags.push(["ok", "Совесть +1"]); }
+  S.result = { title: "ОТСРОЧКА", text, cash: 0, tags }; S.phase = "result"; run();
+}
+function closeCase(c) {
+  const tags = []; let text;
+  stat("law", -1); tags.push(["bad", "Закон −1"]);
+  if (c.hardship === 0) { stat("complaints", 1); tags.push(["bad", "Жалобы +1"]); text = "Закрыть дело без оснований вам не дали: взыскатель добился проверки."; }
+  else { stat("heart", 1); tags.push(["ok", "Совесть +1"]); text = "Вы закрыли дело. Формально без оснований, неформально по-человечески. Начальник вздохнул и поставил подпись."; }
+  S.result = { title: "ДЕЛО ЗАКРЫТО", text, cash: 0, tags }; S.phase = "result"; run();
+}
+function resultScreen() {
+  const r = S.result; room();
+  panel(`<h2>${esc(r.title)}</h2>
+    <div>${r.tags.map(([k, t]) => `<span class="tag ${k}">${esc(t)}</span>`).join("")}</div>
+    <p>${esc(r.text)}</p>
+    <p class="who">${r.cash ? "Взыскано: " + esc(fmt(r.cash)) : "Без взыскания."}</p>`);
+  setActions([{ label: "Следующий адрес", cls: "primary", fn: next }]);
+}
+function next() { S.step += 1; S.phase = "door"; S.picks = []; S.vis = 0; S.note = ""; S.result = null; run(); }
+
+// ----- суд -----
+function courtScreen() {
+  const v = VISITORS[S.vis];
+  if (!v) {
+    court(); panel(`<h2>ДЕЖУРСТВО ЗАВЕРШЕНО</h2><p>Смена на входе окончена. Рамка металлодетектора молчит впервые за день.</p>`);
+    setActions([{ label: "К следующему адресу", cls: "primary", fn: next }]); return;
+  }
+  if (S.phase === "door") S.phase = "view";
+  if (S.phase === "view") {
+    court(v.look);
+    panel(`<h2>${esc(v.name)}</h2><p>${esc(v.intro)}</p><q>${esc(v.say)}</q><p class="who">Посетитель ${S.vis + 1} из ${VISITORS.length}</p>`);
+    setActions([
+      { label: "Пропустить без досмотра", fn: () => allow(v) },
+      { label: "Досмотреть сумку", cls: "primary", fn: () => { S.phase = "bag"; run(); } }
+    ]);
+  } else if (S.phase === "bag") {
+    court(v.look);
+    panel(`<h2>СОДЕРЖИМОЕ СУМКИ</h2><p>${v.bag.map(esc).join("<br>")}</p>
+      ${v.danger ? `<div class="note">Есть предмет, запрещённый к проносу в здание суда.</div>` : `<div class="note">Ничего запрещённого.</div>`}`);
+    setActions(v.danger
+      ? [{ label: "Изъять опасный предмет и пропустить", cls: "primary", fn: () => confiscate() }, { label: "Не пускать в здание", cls: "danger", fn: () => refuse() }]
+      : [{ label: "Извиниться и пропустить", cls: "primary", fn: () => { stat("complaints", 1); courtResult("Человек проходит, ворча: «Из-за вас я опоздал».", [["bad", "Жалобы +1"]]); } }]);
+  } else if (S.phase === "courtResult") {
+    court(); panel(`<h2>${esc(S.result.title)}</h2><div>${S.result.tags.map(([k, t]) => `<span class="tag ${k}">${esc(t)}</span>`).join("")}</div><p>${esc(S.result.text)}</p>`);
+    setActions([{ label: "Следующий", cls: "primary", fn: () => { S.vis += 1; S.phase = "door"; run(); } }]);
+  }
+}
+function courtResult(text, tags, title) { S.result = { title: title || "РЕЗУЛЬТАТ", text, tags }; S.phase = "courtResult"; run(); }
+function allow(v) {
+  if (v.danger) { stat("safety", -1); stat("law", -1); courtResult("Пропустили. В зале заседаний потом потребуют вызвать наряд. Охрана смотрит на вас молча.", [["bad", "Безопасность −1"], ["bad", "Закон −1"]], "ИНЦИДЕНТ"); }
+  else { stat("law", 1); courtResult("Человек прошёл и поблагодарил. Очередь не задержалась.", [["ok", "Закон +1"]]); }
+}
+function confiscate() { stat("safety", 1); stat("law", 1); courtResult("Предмет изъят под расписку и сдан в камеру хранения. Человек проходит без нарушений.", [["ok", "Безопасность +1"], ["ok", "Закон +1"]]); }
+function refuse() { stat("safety", 1); stat("complaints", 1); courtResult("Не пустили, адвокат обещает жалобу, а свидетель вернулся с другим костюмом.", [["ok", "Безопасность +1"], ["bad", "Жалобы +1"]]); }
+
+// ----- итог -----
+function summary() {
+  desk(); const a = S.stats;
+  const cash = Math.min(100, Math.round((a.cash / PLAN) * 100));
+  const law = Math.max(0, Math.min(100, 50 + a.law * 8));
+  const heart = Math.max(0, Math.min(100, 50 + a.heart * 10));
+  const safe = Math.max(0, Math.min(100, 50 + a.safety * 25));
+  const score = Math.round((cash + law + heart + safe) / 4);
+  const verdict = score >= 75 ? "Образцовый пристав: и закон, и совесть. Начальник даже обещал премию." : score >= 55 ? "Нормальная смена. Закон не пострадал, совесть слегка потёрлась." : score >= 35 ? "Тяжёлый день. К вам придёт проверка, а к вечернему чаю есть пять жалоб." : "Служебное расследование. Рекомендуют сменить работу или хотя бы городок.";
+  const bar = (n, v) => `<div class="bar ${v < 40 ? "low" : ""}"><span>${esc(n)}</span><b>${v}%</b><i><span style="width:${v}%"></span></i></div>`;
+  panel(`<h2>ИТОГ СМЕНЫ</h2><div class="bars">${bar("План: " + fmt(a.cash) + " из " + fmt(PLAN), cash)}${bar("Законность", law)}${bar("Совесть", heart)}${bar("Безопасность суда", safe)}</div>
+    <p>${esc(verdict)}</p><p class="who">Оценка: ${score} из 100 · Жалоб: ${a.complaints}</p>`);
+  setActions([{ label: "Сыграть ещё раз", cls: "primary", fn: () => { S = fresh(); run(); } }, { label: "В меню", fn: () => { clearSave(); menu(); } }]);
+  clearSave();
+}
+
+menu();
+</script>
