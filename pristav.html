@@ -375,8 +375,18 @@ const VISITORS = [
     allowQuip: "Он прошёл, не здороваясь. Начальнику, кажется, уже доложили, что вы человек понимающий." },
   { id: "courier", name: "Курьер с коробкой", look: { skin: "#f0cfa8", hair: "#1c1c22", style: "short", shirt: "#d9a441", extra: ["cap"] },
     intro: "Несёт в обеих руках коробку с надписью «НЕ ВСКРЫВАТЬ».", say: "Это секретарю суда. Подпишите здесь.", beep: false,
-    bag: ["Коробка «не вскрывать»", "Накладная", "Самокат"], danger: false,
-    quip: "В коробке был торт для секретаря. «Не вскрывать» относилось к крему." },
+    bag: ["Коробка «не вскрывать»", "Накладная", "Самокат"], danger: false, sealed: true,
+    boxOpen: "Внутри торт «Наполеон» и записка «Секретарю от благодарных заявителей». Крем слегка помят проверкой.",
+    ask: "Нет, торт. Он, конечно, опасный, но только для фигуры.",
+    quip: "«Не вскрывать» относилось к крему. Курьер вздохнул и пошёл пересобирать торт." },
+  { id: "parcel", name: "Курьер с посылкой", look: { skin: "#e8c0a0", hair: "#2a1c1c", style: "short", shirt: "#3a8a5a", extra: ["cap"] },
+    intro: "Тащит коробку с надписью «НЕ ВСКРЫВАТЬ» и косится на выход. Рамка молчит: металла нет.", say: "Посылка секретарю. Отправитель? Не знаю, оставили на крыльце, заплатили вперёд.", beep: false,
+    bag: ["Коробка «не вскрывать»", "Накладная без адреса отправителя", "Самокат"], danger: true, sealed: true,
+    hide: { item: "Подозрительное устройство с проводами и таймером", where: "в коробке" },
+    boxOpen: "Под слоем упаковки провода и таймер, который отсчитывает секунды. Вы отходите на шаг и зовёте сапёров.",
+    ask: "Запрещённое? Я ничего не открываю, мне платят за доставку.",
+    inc: "Приехали сапёры, здание эвакуировали, заседания сорваны на полдня.",
+    confQuip: "Коробку вынесли сапёры, здание закрыли на час. Курьер клянётся, что «просто повёз за пятьсот рублей». Полиция уже едет." },
   { id: "drunk", name: "Мужчина с запахом", look: { skin: "#e8b898", hair: "#5a4a3a", style: "short", shirt: "#6a6a52", extra: [] },
     intro: "Улыбается слишком широко. Рамка молчит.", say: "Я трезвый как стёклышко. Вот повестка, вот я.", beep: false,
     bag: ["Бутылка «Нарзана»", "Бутылка без этикетки", "Повестка"], danger: true,
@@ -705,15 +715,17 @@ const LABELS = { cash: "Взыскано", law: "Закон", heart: "Совес
 function buildSchedule(seed) {
   const r = rng(seed);
   const dang = shuffle(VISITORS.filter((v) => v.danger).map((v) => v.id), r), safe = shuffle(VISITORS.filter((v) => !v.danger).map((v) => v.id), r);
-  const nd = [1, 2, 2, 2], ns = [2, 2, 2, 3];
+  // дни не повторяют друг друга: разный порядок дел, размер смены на входе и «причуда» дня
+  const pick = (a) => a[Math.floor(r() * a.length)];
+  const nd = [pick([1, 2]), pick([1, 2]), pick([2, 3]), pick([2, 2])], ns = [pick([1, 2]), pick([2, 3]), pick([2, 2]), pick([2, 3])];
+  const twists = ["normal"].concat(shuffle(["broken", "trial", "normal"], r));
   const col = shuffle(EVENTS.filter((e) => e.src === "colleague").map((e) => e.id), r), nei = shuffle(EVENTS.filter((e) => e.src === "neighbor").map((e) => e.id), r);
   const TM = ["08:50", "09:30", "11:00", "11:20", "12:30", "13:00", "15:30"];
   return DAYS.map((d, i) => {
-    const debts = shuffle(d.debtors, r), court = shuffle(dang.splice(0, nd[i]).concat(safe.splice(0, ns[i])), r);
-    return [
-      { t: "event", id: "b" + (i + 1), time: TM[0] }, { t: "debt", id: debts[0], time: TM[1] }, { t: "event", id: nei[i], time: TM[2] },
-      { t: "debt", id: debts[1], time: TM[3] }, { t: "event", id: col[i], time: TM[4] }, { t: "court", ids: court, time: TM[5] }, { t: "debt", id: debts[2], time: TM[6] }
-    ];
+    const tw = twists[i], debts = shuffle(d.debtors, r);
+    const court = shuffle(dang.splice(0, nd[i] + (tw === "trial" ? 1 : 0)).concat(safe.splice(0, ns[i])), r);
+    const mid = shuffle([{ t: "debt", id: debts[0] }, { t: "debt", id: debts[1] }, { t: "debt", id: debts[2] }, { t: "event", id: nei[i] }, { t: "event", id: col[i] }, { t: "court", ids: court, twist: tw }], r);
+    return [{ t: "event", id: "b" + (i + 1) }].concat(mid).map((s, k) => Object.assign(s, { time: TM[k] }));
   });
 }
 function planFor(sched) {
@@ -1000,6 +1012,8 @@ function morning() {
     const r = S.review, rn = { bonus: ["ПРЕМИЯ 3 000 ₽", "ok", "Начальник кисло улыбнулся и подписал бумагу."], rep: ["ВЫГОВОР", "bad", "Лыков зачитал приказ, не поднимая глаз."], note: ["ЗАМЕЧАНИЕ УСТНОЕ", "ok", "«Работайте». Ни хвалы, ни наказания."] }[r.kind];
     html += `<div class="note"><b>Итоги вчерашнего дня.</b><br>Взыскано: ${esc(fmt(r.gained))} при плане ${esc(fmt(r.plan))}. Жалоб за день: ${r.comp}.${r.inc ? " Инцидентов на входе в суд: " + r.inc + "." : ""}</div><span class="tag ${rn[1]}">${rn[0]}</span><p>${esc(rn[2])}</p>`;
   }
+  const ct = S.sched[S.day].find((x) => x.t === "court"), tw = { broken: "В суде сегодня сломана рамка металлодетектора: на неё нельзя полагаться.", trial: "В суде громкое дело: народу больше обычного, и опасных тоже." }[ct && ct.twist];
+  if (tw) html += `<div class="note">${esc(tw)}</div>`;
   html += `<p class="who">Район: ${esc(D.name)}. ${esc(D.blurb)}</p><p>План на день: <b>${esc(fmt(S.plans[S.day]))}</b>. Три адреса, дежурство в суде и телефон, который не замолкает.</p>`;
   panel(html);
   setActions([{ label: S.day ? "На смену" : "Выйти на смену", cls: "primary", fn: () => { S.phase = "start"; S.step = 0; S.dayStart = { cash: S.stats.cash, law: S.stats.law, complaints: S.stats.complaints, inc: S.incidents || 0 }; run(); } }]);
@@ -1151,12 +1165,13 @@ function courtScreen(st) {
   const v = VIS[st.ids[S.vis]], n = st.ids.length;
   if (!v) { scn("court", "cend", { p: null }); panel(`<h2>ДЕЖУРСТВО ЗАВЕРШЕНО</h2><p>Смена на входе окончена. Рамка металлодетектора молчит впервые за день.</p>`); setActions([{ label: "К следующему адресу", cls: "primary", fn: next }]); return; }
   const s = scn("court", "v" + v.id, { p: v.look });
-  const q = S.q = S.q || {}, visible = v.danger && !v.hide;
+  const q = S.q = S.q || {}, visible = v.danger && !v.hide, onBody = v.hide && !v.sealed, broken = st.twist === "broken";
   // найден запрещённый предмет: протокол даёт закон, изъятие без него это нарушение порядка
   const seized = [{ label: "Составить протокол и изъять", cls: "primary", fn: () => cOut(v, "proto") }, { label: "Изъять без протокола", fn: () => cOut(v, "conf") }, { label: "Не пускать в здание", cls: "danger", fn: () => cOut(v, "refuse") }];
   if (S.phase === "start") {
-    s.beeping = v.beep; if (v.beep && !q.beeped) { q.beeped = true; setTimeout(() => Snd.play("beep"), 200); }
-    let html = `<h2>${esc(v.name)}</h2><p>${esc(v.intro)}</p><p class="who">Рамка: ${v.beep ? "ПИЩИТ." : "молчит."}</p>`;
+    s.beeping = v.beep && !broken; if (s.beeping && !q.beeped) { q.beeped = true; setTimeout(() => Snd.play("beep"), 200); }
+    let html = `<h2>${esc(v.name)}</h2><p>${esc(v.intro)}</p><p class="who">Рамка: ${broken ? "сегодня сломана, ей нельзя верить." : v.beep ? "ПИЩИТ." : "молчит."}</p>`;
+    if (S.vis === 0 && st.twist === "trial") html += `<p class="who">Сегодня громкое дело: народу больше обычного.</p>`;
     if (q.purpose) html += `<p class="who">Цель визита?</p><q>${esc(v.say)}</q>`;
     if (q.ask) html += `<p class="who">Есть запрещённые предметы?</p><q>${esc(askAnswer(v))}</q>`;
     panel(html + `<p class="who">Посетитель ${S.vis + 1} из ${n}</p>`);
@@ -1170,13 +1185,22 @@ function courtScreen(st) {
     setActions(list);
   } else if (S.phase === "bag") {
     s.beeping = false;
-    panel(`<h2>СОДЕРЖИМОЕ СУМКИ</h2><p>${v.bag.map(esc).join("<br>")}</p><div class="note">${visible ? esc(v.dangerNote || "Есть предмет, запрещённый к проносу в здание суда.") : "В сумке ничего запрещённого."}</div>`);
-    setActions(visible ? seized : [{ label: "Извиниться и пропустить", cls: "primary", fn: () => cOut(v, "pass") }, { label: "Личный обыск", fn: () => { S.phase = "frisk"; run(); } }]);
+    panel(`<h2>СОДЕРЖИМОЕ СУМКИ</h2><p>${v.bag.map(esc).join("<br>")}</p><div class="note">${visible ? esc(v.dangerNote || "Есть предмет, запрещённый к проносу в здание суда.") : v.sealed ? "Коробка запечатана: «НЕ ВСКРЫВАТЬ». Что внутри, неизвестно." : "В сумке ничего запрещённого."}</div>`);
+    const more = [];
+    if (v.sealed) more.push({ label: "Вскрыть коробку", cls: "primary", fn: () => { S.phase = "box"; run(); } });
+    more.push({ label: "Извиниться и пропустить", cls: v.sealed ? "" : "primary", fn: () => cOut(v, "pass") }, { label: "Личный обыск", fn: () => { S.phase = "frisk"; run(); } });
+    setActions(visible ? seized : more);
+  } else if (S.phase === "box") {
+    s.beeping = false;
+    panel(`<h2>КОРОБКА ВСКРЫТА</h2><p>${esc(v.boxOpen)}</p>${v.hide ? `<div class="note">Найдено: <b>${esc(v.hide.item)}</b>.</div>` : ""}`);
+    setActions(v.hide ? seized : [{ label: "Извиниться и пропустить", cls: "primary", fn: () => cOut(v, "boxok") }]);
   } else if (S.phase === "frisk") {
     s.beeping = false;
-    const found = v.hide ? `<div class="note">Найдено: <b>${esc(v.hide.item)}</b>. Запрещено к проносу в суд.</div>` : visible ? `<div class="note">${esc(v.dangerNote || "Сверх найденного в сумке ничего нет.")}</div>` : `<div class="note">Карманы, обувь, одежда: ничего запрещённого.</div>`;
+    const found = onBody ? `<div class="note">Найдено: <b>${esc(v.hide.item)}</b>. Запрещено к проносу в суд.</div>` : visible ? `<div class="note">${esc(v.dangerNote || "Сверх найденного в сумке ничего нет.")}</div>` : `<div class="note">Карманы, обувь, одежда: ничего запрещённого.${v.sealed ? " Подозрительна только коробка." : ""}</div>`;
     panel(`<h2>ЛИЧНЫЙ ОБЫСК</h2><p>Вы просите вывернуть карманы и снять верхнюю одежду.</p>${found}`);
-    setActions(v.danger ? seized : [{ label: "Извиниться и пропустить", cls: "primary", fn: () => cOut(v, "frisk") }]);
+    const back = [{ label: "Извиниться и пропустить", cls: v.sealed ? "" : "primary", fn: () => cOut(v, "frisk") }];
+    if (v.sealed) back.unshift({ label: "Вскрыть коробку", cls: "primary", fn: () => { S.phase = "box"; run(); } });
+    setActions(onBody || visible ? seized : back);
   } else if (S.phase === "cres") {
     s.beeping = false; panel(`<h2>${esc(S.result.title)}</h2>${tagsHtml(S.result.tags)}<p>${esc(S.result.text)}</p>`);
     setActions([{ label: "Следующий", cls: "primary", fn: () => { S.vis += 1; S.phase = "start"; S.q = {}; run(); } }]);
@@ -1208,12 +1232,16 @@ function cOut(v, kind) {
   } else if (kind === "conf") {
     fx = { safety: 1, law: -1 }; if (v.soft) fx.heart = 1; if (v.friend) fx.boss = 1;
     text = (v.confQuip || "Предмет изъят. Человек проходит без нарушений.") + " Протокола нет: формально вы нарушили порядок.";
+  } else if (kind === "boxok") {
+    fx = { complaints: 1 }; text = "Коробку вскрыли зря, курьер обижен, но осторожность не лишняя. " + v.quip;
+  } else if (kind === "frisk" && v.hide) {
+    const r = incident(v, "Карманы были чистыми, а опасное лежало " + v.hide.where + ", которую вы так и не вскрыли."); fx = r.fx; title = r.title; text = r.text;
   } else if (kind === "frisk") {
     fx = { complaints: v.beep ? 0 : (v.serial ? 2 : 1) }; if (v.friend) fx.boss = -1;
     text = v.beep ? "Рамка пищала не зря: металл оказался законным. Человек понимающе кивает. " + v.quip : "Обыск ничего не дал, человек обижен и обещает жалобу. " + v.quip;
   } else if (kind === "refuse") { fx = { safety: 1, complaints: 1 }; text = "Не пустили. Человек обещает жалобу, но в здание не прошёл."; }
   else if (kind === "pass") {
-    if (v.hide) { const r = incident(v, "В сумке было чисто, но опасное лежало " + v.hide.where + ", а вы не проверили человека лично."); fx = r.fx; title = r.title; text = r.text; }
+    if (v.hide) { const r = incident(v, v.sealed ? "Коробку «не вскрывать» так и не вскрыли, а внутри было опасное." : "В сумке было чисто, но опасное лежало " + v.hide.where + ", а вы не проверили человека лично."); fx = r.fx; title = r.title; text = r.text; }
     else { fx = { complaints: 1 }; if (v.serial) fx.complaints = 2; if (v.friend) fx.boss = -1; text = "Человек проходит, ворча про досмотр. " + v.quip; }
   } else if (kind === "blind") {
     if (v.danger) { fx = { safety: 1, complaints: 1 }; text = "Не пустили, и, как выяснилось, не зря. Человек уходит, обещая написать куда следует."; }

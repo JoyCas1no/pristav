@@ -77,6 +77,7 @@ for (const v of data.VISITORS) {
   if (v.hide && (!v.danger || !v.hide.item || !v.hide.where || !v.ask)) errs.push(v.id + ": неполный тайник (нужны danger, hide.item, hide.where, ask)");
   if (v.hide && v.bag.some((b) => b.toLowerCase().includes(v.hide.item.toLowerCase().split(" ")[0]))) errs.push(v.id + ": тайник виден в сумке");
 }
+for (const v of data.VISITORS) if (v.sealed && !v.boxOpen) errs.push(v.id + ": у запечатанной коробки нет boxOpen");
 if (!data.HARM || data.HARM.length < 4) errs.push("HARM: нужно 4 пострадавших");
 if (data.VISITORS.filter((v) => v.hide).length < 3) errs.push("мало посетителей с тайником");
 for (const e of data.EVENTS) if (e.choices.length < 3) errs.push(e.id + ": мало выборов");
