@@ -41,6 +41,15 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 button.primary { background: var(--gold); color: #1c1608; }
 button.danger { background: #6d2a24; }
 button:disabled { opacity: .45; cursor: default; }
+.form { display: grid; gap: 8px; margin: 8px 0; }
+.form label { display: grid; gap: 3px; font-family: var(--font-display); font-size: 8px; line-height: 1.5; }
+.form input { font-family: inherit; font-size: 16px; min-height: 44px; padding: 6px 8px; color: #1c1608; background: #f4ecd0; border: 3px solid #0c0d11; border-radius: 0; box-sizing: border-box; width: 100%; }
+.form input:focus-visible { outline: 3px solid var(--gold); outline-offset: 1px; }
+.board { margin: 8px 0; padding-left: 22px; }
+.board li { padding: 3px 0; }
+.board li span { display: inline-block; min-width: 9em; }
+.board li.me { color: var(--gold); }
+.acc { margin-top: 6px; }
 .docs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
 .doc { background: #f7f2e1; border: 2px dashed #8d8468; padding: 6px 8px; font-size: 20px; min-width: 0; overflow-wrap: anywhere; }
 .doc.wide { grid-column: 1 / -1; }
@@ -523,15 +532,99 @@ const ENDINGS = {
   avg: ["ОБЫЧНЫЙ ПРИСТАВ", "Неделя как неделя. Закон слегка пострадал, совесть слегка потёрлась, план почти выполнен. В Заречинске бывало хуже."]
 };
 
+// ---------- облако: аккаунты, сохранение, рекорды (Supabase, чистый fetch) ----------
+// anon-ключ публичный по замыслу Supabase; доступ к данным закрыт политиками RLS (supabase/schema.sql).
+const Cloud = (() => {
+  const URL_ = "https://jctckwqczujjrknrwdyb.supabase.co";
+  const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjdGNrd3FjenVqanJrbnJ3ZHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2ODU5MTIsImV4cCI6MjEwOTI2MTkxMn0.WRvbBftA4ZebC3Wb5MIM665I_E0YMn8pK3SX6Mgmv-c";
+  const AUTH = "pristav-auth", DOMAIN = "@pristav.game";
+  let auth = null, pushTimer = 0;
+  try { auth = JSON.parse(localStorage.getItem(AUTH)); } catch (e) {}
+  const hasNet = () => typeof fetch === "function";
+  const saveAuth = () => { try { if (auth) localStorage.setItem(AUTH, JSON.stringify(auth)); else localStorage.removeItem(AUTH); } catch (e) {} };
+  const nameOk = (u) => /^[a-z0-9_]{3,16}$/.test(u);
+  const mailOk = (m) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(m);
+
+  async function raw(path, opts = {}, token) {
+    if (!hasNet()) throw new Error("Нет соединения");
+    const headers = Object.assign({ apikey: KEY, "Content-Type": "application/json", Authorization: "Bearer " + (token || KEY) }, opts.headers || {});
+    let r;
+    try { r = await fetch(URL_ + path, Object.assign({}, opts, { headers })); } catch (e) { throw new Error("Нет соединения"); }
+    let body = null; const txt = await r.text(); try { body = txt ? JSON.parse(txt) : null; } catch (e) { body = txt; }
+    if (!r.ok) { const err = new Error((body && (body.msg || body.message || body.error_description || body.error)) || "Ошибка " + r.status); err.status = r.status; err.code = body && (body.error_code || body.code); throw err; }
+    return body;
+  }
+  function setSession(b, username) {
+    auth = { access: b.access_token, refresh: b.refresh_token, exp: Math.floor(Date.now() / 1000) + (b.expires_in || 3600), id: b.user.id, username: username || (b.user.user_metadata && b.user.user_metadata.username) || (auth && auth.username) || "" };
+    saveAuth();
+  }
+  async function token() {
+    if (!auth) return null;
+    if (auth.exp - 60 < Date.now() / 1000) {
+      try { const b = await raw("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: auth.refresh }) }); setSession(b, auth.username); }
+      catch (e) { if (e.status === 400 || e.status === 401) { auth = null; saveAuth(); } throw e; }
+    }
+    return auth.access;
+  }
+  const authed = async (path, opts) => raw(path, opts, await token());
+
+  function human(e) {
+    const m = String(e.message || ""), c = e.code || "";
+    if (/invalid login|invalid_credentials/i.test(m + c)) return "Неверный логин или пароль.";
+    if (/already|exists|duplicate|username_format|profiles_username/i.test(m + c) || e.status === 422 && !/password|weak/i.test(m)) return "Такой логин уже занят.";
+    if (/password/i.test(m)) return "Пароль слишком простой: нужно минимум 6 символов.";
+    if (e.status === 429 || /rate/i.test(m)) return "Слишком много попыток, подождите минуту.";
+    if (/соединени/i.test(m)) return "Нет соединения. Можно играть гостем.";
+    return "Не вышло: " + m;
+  }
+
+  return {
+    human,
+    get user() { return auth ? auth.username : null; },
+    get online() { return !!auth; },
+    async signUp(username, email, password) {
+      username = String(username || "").trim().toLowerCase(); email = String(email || "").trim();
+      if (!nameOk(username)) throw new Error("Логин: 3–16 символов, латиница, цифры и _.");
+      if (!mailOk(email)) throw new Error("Введите настоящую почту.");
+      if (String(password || "").length < 6) throw new Error("Пароль: минимум 6 символов.");
+      const free = await raw("/rest/v1/rpc/username_free", { method: "POST", body: JSON.stringify({ name: username }) });
+      if (free === false) throw new Error("Такой логин уже занят.");
+      const b = await raw("/auth/v1/signup", { method: "POST", body: JSON.stringify({ email: username + DOMAIN, password, data: { username, real_email: email } }) });
+      if (!b || !b.access_token) throw new Error("Регистрация не завершилась, попробуйте войти.");
+      setSession(b, username);
+    },
+    async signIn(username, password) {
+      username = String(username || "").trim().toLowerCase();
+      if (!nameOk(username) || !password) throw new Error("Неверный логин или пароль.");
+      const b = await raw("/auth/v1/token?grant_type=password", { method: "POST", body: JSON.stringify({ email: username + DOMAIN, password }) });
+      setSession(b, username);
+    },
+    signOut() { auth = null; saveAuth(); clearTimeout(pushTimer); },
+    // облако -> устройство; если облако пусто, на устройстве остаётся то, что есть (перенос в первый профиль)
+    async pull() {
+      const rows = await authed("/rest/v1/saves?select=data,settings&limit=1");
+      return rows && rows[0] ? rows[0] : null;
+    },
+    async push() {
+      if (!auth) return;
+      let data = {}; try { data = JSON.parse(localStorage.getItem(SAVE)) || {}; } catch (e) {}
+      await authed("/rest/v1/saves?on_conflict=user_id", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ user_id: auth.id, data, settings: settings, updated_at: new Date().toISOString() }) });
+    },
+    schedulePush() { if (!auth || !hasNet()) return; clearTimeout(pushTimer); pushTimer = setTimeout(() => { Cloud.push().catch(() => {}); }, 1500); },
+    async submitScore(score, day, ending) { if (!auth) return; await authed("/rest/v1/rpc/submit_score", { method: "POST", body: JSON.stringify({ p_score: score, p_day: day, p_ending: ending }) }); },
+    async leaderboard() { return raw("/rest/v1/scores?select=username,score,day,ending&order=score.desc,updated_at.asc&limit=10"); }
+  };
+})();
+
 "use strict";
 // ---------- сохранение и настройки ----------
 const SAVE = "pristav-save-v2", SET = "pristav-settings";
 function loadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE)); return s && s.v === 2 ? s : null; } catch (e) { return null; } }
-function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
-function clearSave() { try { localStorage.removeItem(SAVE); } catch (e) {} }
+function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} Cloud.schedulePush(); }
+function clearSave() { try { localStorage.removeItem(SAVE); } catch (e) {} Cloud.schedulePush(); }
 let settings = { sound: true, best: 0 };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SET)) || {}); } catch (e) {}
-function writeSettings() { try { localStorage.setItem(SET, JSON.stringify(settings)); } catch (e) {} }
+function writeSettings() { try { localStorage.setItem(SET, JSON.stringify(settings)); } catch (e) {} Cloud.schedulePush(); }
 
 // ---------- звук (WebAudio, включается после касания) ----------
 const Snd = {
@@ -770,11 +863,65 @@ function menu() {
     <p>Неделя пристава в Заречинске: четыре района, двенадцать должников, суд и начальник, который звонит вовремя.</p>
     <p class="who">Все персонажи и организации вымышлены. 16+: чёрный юмор, без жестокости.${settings.best ? " Рекорд: " + settings.best + " из 100." : ""}</p>`);
   const saved = loadSave(), list = [], can = saved && !saved.over && saved.day < DAYS.length;
+  $("#panel").insertAdjacentHTML("beforeend", Cloud.user ? `<p class="who acc">Профиль: <b>${esc(Cloud.user)}</b> · сохранение в облаке</p>` : `<p class="who acc">Гость: прогресс только на этом устройстве.</p>`);
   if (can) list.push({ label: "Продолжить: день " + (saved.day + 1), cls: "primary", fn: () => { S = saved; enteredKey = ""; run(); } });
   list.push({ label: can ? "Новая неделя" : "Начать неделю", cls: can ? "" : "primary", fn: () => { S = fresh(); enteredKey = ""; run(); } });
+  if (Cloud.user) list.push({ label: "Таблица рекордов", fn: board });
+  else { list.push({ label: "Войти", fn: () => authScreen("in") }); list.push({ label: "Регистрация", fn: () => authScreen("up") }); list.push({ label: "Таблица рекордов", fn: board }); }
   list.push({ label: "Как играть", fn: howTo });
   list.push({ label: "Звук: " + (settings.sound ? "включён" : "выключен"), fn: () => { settings.sound = !settings.sound; writeSettings(); menu(); } });
+  if (Cloud.user) list.push({ label: "Выйти из профиля", fn: logout });
   setActions(list);
+}
+function logout() {
+  Cloud.signOut();
+  try { localStorage.removeItem(SAVE); localStorage.removeItem(SET); } catch (e) {}
+  settings.sound = true; settings.best = 0; $("#snd").textContent = "♪";
+  menu();
+}
+// облако -> устройство после входа: сохранение из облака главнее, пустое облако получает то, что уже есть на устройстве
+async function syncAfterLogin() {
+  try {
+    const row = await Cloud.pull();
+    if (row) {
+      if (row.data && row.data.v === 2) localStorage.setItem(SAVE, JSON.stringify(row.data));
+      const cs = row.settings || {};
+      if (typeof cs.sound === "boolean") settings.sound = cs.sound;
+      settings.best = Math.max(settings.best || 0, cs.best || 0);
+      writeSettings();
+    }
+    await Cloud.push();
+  } catch (e) {}
+  $("#snd").textContent = settings.sound ? "♪" : "×";
+}
+function authScreen(mode) {
+  const up = mode === "up";
+  sc = { kind: "street", key: "auth", dist: "old" };
+  panel(`<h2>${up ? "РЕГИСТРАЦИЯ" : "ВХОД"}</h2>
+    <p>${up ? "Логин нужен для входа, почта на случай связи. Прогресс и рекорд будут в облаке: играть можно с любого телефона." : "Введите логин и пароль, которые вы указали при регистрации."}</p>
+    <div class="form"><label>Логин<input id="f_user" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="16" placeholder="latin_login"></label>
+    ${up ? `<label>Почта<input id="f_mail" type="email" autocomplete="email" autocapitalize="none" placeholder="you@mail.ru"></label>` : ""}
+    <label>Пароль<input id="f_pass" type="password" autocomplete="${up ? "new-password" : "current-password"}" placeholder="от 6 символов"></label></div>
+    <p class="who" id="msg"></p>`);
+  let busy = false;
+  const go = async () => {
+    if (busy) return; busy = true; const msg = $("#msg"); msg.textContent = "Подождите…";
+    try {
+      if (up) await Cloud.signUp($("#f_user").value, $("#f_mail").value, $("#f_pass").value); else await Cloud.signIn($("#f_user").value, $("#f_pass").value);
+      msg.textContent = "Готово, загружаю профиль…"; await syncAfterLogin(); Snd.play("good"); menu();
+    } catch (e) { msg.textContent = e.message && /^(Логин|Введите|Пароль|Такой|Неверный|Регистрация)/.test(e.message) ? e.message : Cloud.human(e); Snd.play("bad"); busy = false; }
+  };
+  setActions([{ label: up ? "Зарегистрироваться" : "Войти", cls: "primary", fn: go }, { label: up ? "У меня уже есть аккаунт" : "Нет аккаунта: регистрация", fn: () => authScreen(up ? "in" : "up") }, { label: "Назад", fn: menu }]);
+}
+function board() {
+  sc = { kind: "street", key: "board", dist: "old" };
+  panel(`<h2>ТАБЛИЦА РЕКОРДОВ</h2><p class="who" id="msg">Загружаю…</p><div id="rows"></div>`);
+  setActions([{ label: "Назад", cls: "primary", fn: menu }]);
+  Cloud.leaderboard().then((rows) => {
+    if (!$("#rows")) return;
+    $("#msg").textContent = rows.length ? "Лучшие результаты недели (оценка из 100)." : "Пока никого. Станьте первым.";
+    $("#rows").innerHTML = `<ol class="board">${rows.map((r) => `<li class="${r.username === Cloud.user ? "me" : ""}"><span>${esc(r.username)}</span><b>${r.score}</b></li>`).join("")}</ol>`;
+  }).catch((e) => { if ($("#msg")) $("#msg").textContent = Cloud.human(e); });
 }
 function howTo() {
   sc = { kind: "street", key: "how", dist: "old" };
@@ -1012,6 +1159,7 @@ function endScreen() {
   const bar = (n, v) => `<div class="bar ${v < 40 ? "low" : ""}"><span>${esc(n)}</span><b>${v}%</b><i><span style="width:${v}%"></span></i></div>`;
   const fates = S.log.map((l) => { const c = CASE[l.id]; return `<li><b>${esc(c.name.split(" ").slice(0, 2).join(" "))}.</b> ${esc(l.out === "m" ? c.fate.m : c.fate.s)}</li>`; }).join("");
   if (score > (settings.best || 0)) { settings.best = score; writeSettings(); }
+  Cloud.submitScore(score, S.day, end).catch(() => {});
   panel(`<h2>${esc(title)}</h2><p>${esc(text)}</p>
     <div class="bars">${bar("План недели: " + fmt(a.cash) + " из " + fmt(planAll), cash)}${bar("Законность", law)}${bar("Совесть", heart)}${bar("Безопасность суда", safe)}</div>
     <p class="who">Оценка: ${score} из 100 · Жалоб: ${a.complaints} · Премий: ${fmt(S.salary)} · Выговоров: ${S.reprimands}</p>

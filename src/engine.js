@@ -2,11 +2,11 @@
 // ---------- сохранение и настройки ----------
 const SAVE = "pristav-save-v2", SET = "pristav-settings";
 function loadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE)); return s && s.v === 2 ? s : null; } catch (e) { return null; } }
-function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
-function clearSave() { try { localStorage.removeItem(SAVE); } catch (e) {} }
+function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} Cloud.schedulePush(); }
+function clearSave() { try { localStorage.removeItem(SAVE); } catch (e) {} Cloud.schedulePush(); }
 let settings = { sound: true, best: 0 };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SET)) || {}); } catch (e) {}
-function writeSettings() { try { localStorage.setItem(SET, JSON.stringify(settings)); } catch (e) {} }
+function writeSettings() { try { localStorage.setItem(SET, JSON.stringify(settings)); } catch (e) {} Cloud.schedulePush(); }
 
 // ---------- звук (WebAudio, включается после касания) ----------
 const Snd = {
@@ -245,11 +245,65 @@ function menu() {
     <p>Неделя пристава в Заречинске: четыре района, двенадцать должников, суд и начальник, который звонит вовремя.</p>
     <p class="who">Все персонажи и организации вымышлены. 16+: чёрный юмор, без жестокости.${settings.best ? " Рекорд: " + settings.best + " из 100." : ""}</p>`);
   const saved = loadSave(), list = [], can = saved && !saved.over && saved.day < DAYS.length;
+  $("#panel").insertAdjacentHTML("beforeend", Cloud.user ? `<p class="who acc">Профиль: <b>${esc(Cloud.user)}</b> · сохранение в облаке</p>` : `<p class="who acc">Гость: прогресс только на этом устройстве.</p>`);
   if (can) list.push({ label: "Продолжить: день " + (saved.day + 1), cls: "primary", fn: () => { S = saved; enteredKey = ""; run(); } });
   list.push({ label: can ? "Новая неделя" : "Начать неделю", cls: can ? "" : "primary", fn: () => { S = fresh(); enteredKey = ""; run(); } });
+  if (Cloud.user) list.push({ label: "Таблица рекордов", fn: board });
+  else { list.push({ label: "Войти", fn: () => authScreen("in") }); list.push({ label: "Регистрация", fn: () => authScreen("up") }); list.push({ label: "Таблица рекордов", fn: board }); }
   list.push({ label: "Как играть", fn: howTo });
   list.push({ label: "Звук: " + (settings.sound ? "включён" : "выключен"), fn: () => { settings.sound = !settings.sound; writeSettings(); menu(); } });
+  if (Cloud.user) list.push({ label: "Выйти из профиля", fn: logout });
   setActions(list);
+}
+function logout() {
+  Cloud.signOut();
+  try { localStorage.removeItem(SAVE); localStorage.removeItem(SET); } catch (e) {}
+  settings.sound = true; settings.best = 0; $("#snd").textContent = "♪";
+  menu();
+}
+// облако -> устройство после входа: сохранение из облака главнее, пустое облако получает то, что уже есть на устройстве
+async function syncAfterLogin() {
+  try {
+    const row = await Cloud.pull();
+    if (row) {
+      if (row.data && row.data.v === 2) localStorage.setItem(SAVE, JSON.stringify(row.data));
+      const cs = row.settings || {};
+      if (typeof cs.sound === "boolean") settings.sound = cs.sound;
+      settings.best = Math.max(settings.best || 0, cs.best || 0);
+      writeSettings();
+    }
+    await Cloud.push();
+  } catch (e) {}
+  $("#snd").textContent = settings.sound ? "♪" : "×";
+}
+function authScreen(mode) {
+  const up = mode === "up";
+  sc = { kind: "street", key: "auth", dist: "old" };
+  panel(`<h2>${up ? "РЕГИСТРАЦИЯ" : "ВХОД"}</h2>
+    <p>${up ? "Логин нужен для входа, почта на случай связи. Прогресс и рекорд будут в облаке: играть можно с любого телефона." : "Введите логин и пароль, которые вы указали при регистрации."}</p>
+    <div class="form"><label>Логин<input id="f_user" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="16" placeholder="latin_login"></label>
+    ${up ? `<label>Почта<input id="f_mail" type="email" autocomplete="email" autocapitalize="none" placeholder="you@mail.ru"></label>` : ""}
+    <label>Пароль<input id="f_pass" type="password" autocomplete="${up ? "new-password" : "current-password"}" placeholder="от 6 символов"></label></div>
+    <p class="who" id="msg"></p>`);
+  let busy = false;
+  const go = async () => {
+    if (busy) return; busy = true; const msg = $("#msg"); msg.textContent = "Подождите…";
+    try {
+      if (up) await Cloud.signUp($("#f_user").value, $("#f_mail").value, $("#f_pass").value); else await Cloud.signIn($("#f_user").value, $("#f_pass").value);
+      msg.textContent = "Готово, загружаю профиль…"; await syncAfterLogin(); Snd.play("good"); menu();
+    } catch (e) { msg.textContent = e.message && /^(Логин|Введите|Пароль|Такой|Неверный|Регистрация)/.test(e.message) ? e.message : Cloud.human(e); Snd.play("bad"); busy = false; }
+  };
+  setActions([{ label: up ? "Зарегистрироваться" : "Войти", cls: "primary", fn: go }, { label: up ? "У меня уже есть аккаунт" : "Нет аккаунта: регистрация", fn: () => authScreen(up ? "in" : "up") }, { label: "Назад", fn: menu }]);
+}
+function board() {
+  sc = { kind: "street", key: "board", dist: "old" };
+  panel(`<h2>ТАБЛИЦА РЕКОРДОВ</h2><p class="who" id="msg">Загружаю…</p><div id="rows"></div>`);
+  setActions([{ label: "Назад", cls: "primary", fn: menu }]);
+  Cloud.leaderboard().then((rows) => {
+    if (!$("#rows")) return;
+    $("#msg").textContent = rows.length ? "Лучшие результаты недели (оценка из 100)." : "Пока никого. Станьте первым.";
+    $("#rows").innerHTML = `<ol class="board">${rows.map((r) => `<li class="${r.username === Cloud.user ? "me" : ""}"><span>${esc(r.username)}</span><b>${r.score}</b></li>`).join("")}</ol>`;
+  }).catch((e) => { if ($("#msg")) $("#msg").textContent = Cloud.human(e); });
 }
 function howTo() {
   sc = { kind: "street", key: "how", dist: "old" };
@@ -487,6 +541,7 @@ function endScreen() {
   const bar = (n, v) => `<div class="bar ${v < 40 ? "low" : ""}"><span>${esc(n)}</span><b>${v}%</b><i><span style="width:${v}%"></span></i></div>`;
   const fates = S.log.map((l) => { const c = CASE[l.id]; return `<li><b>${esc(c.name.split(" ").slice(0, 2).join(" "))}.</b> ${esc(l.out === "m" ? c.fate.m : c.fate.s)}</li>`; }).join("");
   if (score > (settings.best || 0)) { settings.best = score; writeSettings(); }
+  Cloud.submitScore(score, S.day, end).catch(() => {});
   panel(`<h2>${esc(title)}</h2><p>${esc(text)}</p>
     <div class="bars">${bar("План недели: " + fmt(a.cash) + " из " + fmt(planAll), cash)}${bar("Законность", law)}${bar("Совесть", heart)}${bar("Безопасность суда", safe)}</div>
     <p class="who">Оценка: ${score} из 100 · Жалоб: ${a.complaints} · Премий: ${fmt(S.salary)} · Выговоров: ${S.reprimands}</p>

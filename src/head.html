@@ -37,6 +37,15 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 button.primary { background: var(--gold); color: #1c1608; }
 button.danger { background: #6d2a24; }
 button:disabled { opacity: .45; cursor: default; }
+.form { display: grid; gap: 8px; margin: 8px 0; }
+.form label { display: grid; gap: 3px; font-family: var(--font-display); font-size: 8px; line-height: 1.5; }
+.form input { font-family: inherit; font-size: 16px; min-height: 44px; padding: 6px 8px; color: #1c1608; background: #f4ecd0; border: 3px solid #0c0d11; border-radius: 0; box-sizing: border-box; width: 100%; }
+.form input:focus-visible { outline: 3px solid var(--gold); outline-offset: 1px; }
+.board { margin: 8px 0; padding-left: 22px; }
+.board li { padding: 3px 0; }
+.board li span { display: inline-block; min-width: 9em; }
+.board li.me { color: var(--gold); }
+.acc { margin-top: 6px; }
 .docs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
 .doc { background: #f7f2e1; border: 2px dashed #8d8468; padding: 6px 8px; font-size: 20px; min-width: 0; overflow-wrap: anywhere; }
 .doc.wide { grid-column: 1 / -1; }
