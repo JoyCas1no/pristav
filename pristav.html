@@ -46,6 +46,8 @@ button:disabled { opacity: .45; cursor: default; }
 .board li span { display: inline-block; min-width: 9em; }
 .board li.me { color: var(--gold); }
 .acc { margin-top: 6px; }
+.feat { margin: 8px 0; padding-left: 18px; }
+.feat li { padding: 2px 0; }
 .docs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
 .doc { background: #f7f2e1; border: 2px dashed #8d8468; padding: 6px 8px; font-size: 20px; min-width: 0; overflow-wrap: anywhere; }
 .doc.wide { grid-column: 1 / -1; }
@@ -387,8 +389,9 @@ const VISITORS = [
     quip: "Кот заседал два часа и вёл себя лучше половины ответчиков." },
   { id: "hoodie", name: "Парень в худи", look: { skin: "#e8c0a0", hair: "#2a2a30", style: "short", shirt: "#3a3a46", extra: ["cap"] },
     intro: "Руки в карманах, глаза бегают. Рамка молчит.", say: "Мне просто посидеть. Я не опасный.", beep: false,
-    bag: ["Наушники", "Пауэрбанк", "Электрошокер в носке"], danger: true,
-    inc: "В зале сработал шокер в чужом кармане. Хорошо хоть не в чужой руке. Охрана вызвана.",
+    bag: ["Наушники", "Пауэрбанк", "Жвачка"], danger: true, hide: { item: "Электрошокер в носке", where: "в носке" },
+    ask: "Нет, что вы, я чист. Можете не смотреть.",
+    inc: "Шокер сработал в кармане, а не в чужой руке. Охрана вызвана.",
     confQuip: "Он сказал, что носит «для самообороны после общежития». Теперь будет носить без." },
   { id: "colleague", name: "Коллега из соседнего отдела", look: { skin: "#e8c0a0", hair: "#4a3a2a", style: "short", shirt: "#4a6a8a", extra: ["tie"] },
     intro: "Спокоен, как человек, который никогда не стоял в очереди.", say: "Пропуск дома забыл, ты же меня знаешь.", beep: false,
@@ -410,7 +413,26 @@ const VISITORS = [
   { id: "tourist", name: "Приезжий из района", look: { skin: "#e6b99a", hair: "#8a7a6a", style: "short", shirt: "#8a8a42", extra: ["glasses"] },
     intro: "С картой области, вежливо растерян.", say: "А где тут второй этаж? Мне нотариус нужен.", beep: false,
     bag: ["Карта области", "Булочка", "Телефон"], danger: false,
-    quip: "Нотариус был в другом здании, но человек остался на заседание из любопытства." }
+    quip: "Нотариус был в другом здании, но человек остался на заседание из любопытства." },
+  { id: "bouquet", name: "Мужчина с букетом", look: { skin: "#e8c0a0", hair: "#3a2a1c", style: "short", shirt: "#7a3a3a", extra: ["tie"] },
+    intro: "Огромный букет в хрустящей бумаге, улыбка чуть натянутая. Рамка молчит.", say: "Цветы для судьи. Благодарность за прошлое дело, ничего такого.", beep: false,
+    bag: ["Букет в бумаге", "Открытка", "Зонт"], danger: true, hide: { item: "Нож с керамическим лезвием в стеблях букета", where: "в стеблях" },
+    ask: "Только цветы! Какой нож? Откуда?",
+    inc: "Букет достали уже в зале. Цветы потом приобщили к делу как вещественное доказательство.",
+    confQuip: "Нож был керамический, поэтому рамка и молчала. Человек клянётся, что «стебли подрезал». Цветы судье всё равно отдали, но без начинки." },
+  { id: "puffer", name: "Мужчина в пуховике", look: { skin: "#d9a47c", hair: "#2a2a30", style: "short", shirt: "#5a6a7a", extra: ["scarf"] },
+    intro: "Пуховик в самую жару. Потеет и всё время поправляет карманы.", say: "Я заявитель, пришёл за решением. Просто мёрзну, у меня давление.", beep: false,
+    bag: ["Папка с заявлением", "Термос", "Салфетки"], danger: true, hide: { item: "Петарды в карманах пуховика", where: "в карманах пуховика" },
+    ask: "Нет-нет, какие запрещённые? Я же мёрзну!",
+    inc: "В коридоре хлопнуло так, что секретарь выронила печать. Охрана долго искала, чьё это.",
+    confQuip: "Петарды были «на день рождения сына, но после суда». Теперь день рождения будет без петард." }
+];
+// последствия пропущенного опасного человека (без жестокости: испуг, скорая, заседание сорвано)
+const HARM = [
+  { who: "судья", text: "Пострадала судья: испуг и ушибленная рука, заседание сорвано, вызывали скорую." },
+  { who: "заседатель", text: "Пострадал заседатель: ушёл на носилках с давлением, дело отложено." },
+  { who: "участник процесса", text: "Пострадал участник процесса: в коридоре его пришлось откачивать, заседание перенесли." },
+  { who: "гражданин", text: "Пострадал посторонний гражданин из очереди, на вас составили служебную записку." }
 ];
 
 // ---------- события между делами ----------
@@ -705,7 +727,7 @@ function fresh() {
   const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0, sched = buildSchedule(seed);
   return { v: 2, seed, day: 0, step: 0, phase: "morning", picks: [], vis: 0, tone: null, toneText: "", note: "", result: null, tainted: false,
     stats: { cash: 0, law: 0, heart: 0, safety: 0, complaints: 0 }, boss: 0, bribe: 0, salary: 0, reprimands: 0,
-    sched, plans: planFor(sched), dayStart: { cash: 0, law: 0, complaints: 0 }, review: null, epi: [], log: [], over: null };
+    sched, plans: planFor(sched), dayStart: { cash: 0, law: 0, complaints: 0, inc: 0 }, review: null, epi: [], log: [], over: null, incidents: 0, protocols: 0, q: {} };
 }
 function stat(k, d) { if (k in S.stats) S.stats[k] += d; else S[k] = (S[k] || 0) + d; }
 function applyFx(fx) {
@@ -797,6 +819,21 @@ function sceneCourt() {
   if (beep) { R(24, 22, 48, 1, "#ff6060"); }
   if (sc.p) person(sc.p, 48, 22, sc);
 }
+function sceneLogo() {
+  R(0, 0, 96, 72, "#161826");
+  for (let i = 0; i < 16; i++) R((i * 37 + 5) % 96, (i * 13) % 34, 1, 1, (i + (T >> 4)) % 5 === 0 ? "#6a6a7a" : "#f0e8c0");
+  R(0, 60, 96, 12, "#0e1018"); R(2, 44, 18, 28, "#222638"); R(76, 38, 18, 34, "#262a3e");
+  for (let y = 48; y < 68; y += 6) { R(6, y, 3, 3, "#e8c860"); R(12, y, 3, 3, (y + (T >> 5)) % 4 ? "#e8c860" : "#3a3a44"); }
+  for (let y = 42; y < 68; y += 6) { R(80, y, 3, 3, "#e8c860"); R(87, y, 3, 3, "#e8c860"); }
+  const x = 48;
+  R(x - 18, 4, 36, 28, "#d9a441"); R(x - 16, 32, 32, 4, "#d9a441"); R(x - 12, 36, 24, 4, "#d9a441"); R(x - 8, 40, 16, 3, "#d9a441"); R(x - 4, 43, 8, 2, "#d9a441");
+  R(x - 15, 7, 30, 22, "#2a2e3a"); R(x - 13, 29, 26, 3, "#2a2e3a"); R(x - 10, 32, 20, 3, "#2a2e3a"); R(x - 6, 35, 12, 3, "#2a2e3a"); R(x - 3, 38, 6, 2, "#2a2e3a");
+  R(x - 9, 11, 18, 4, "#e8c860"); R(x - 9, 11, 4, 16, "#e8c860"); R(x + 5, 11, 4, 16, "#e8c860");
+  g.textAlign = "center"; g.textBaseline = "top"; g.fillStyle = "#f4ecd0";
+  g.font = "8px 'Press Start 2P', monospace"; g.fillText("ПРИСТАВ", x, 47);
+  g.fillStyle = "#d9a441"; g.font = "6px 'Press Start 2P', monospace"; g.fillText("СМЕНА", x, 58);
+  g.textAlign = "left";
+}
 function sceneStreet() {
   const D = DISTRICTS[sc.dist || "old"];
   R(0, 0, 96, 72, "#1a1c28"); for (let i = 0; i < 14; i++) R((i * 37) % 96, (i * 17) % 30, 1, 1, "#f0e8c0");
@@ -825,7 +862,7 @@ function sceneStair() {
 function render() {
   T++; const k = sc.kind;
   if (k === "door") sceneDoor(); else if (k === "room") sceneRoom(); else if (k === "court") sceneCourt();
-  else if (k === "desk") sceneDesk(); else if (k === "call") sceneCall(); else if (k === "stair") sceneStair(); else sceneStreet();
+  else if (k === "desk") sceneDesk(); else if (k === "call") sceneCall(); else if (k === "stair") sceneStair(); else if (k === "logo") sceneLogo(); else sceneStreet();
 }
 // сцена пересоздаётся только при смене ключа
 function scn(kind, key, o) { if (sc.kind === kind && sc.key === key) { if (o && o.mood) sc.mood = o.mood; return sc; } sc = Object.assign({ kind, key, open: 0, target: 0.3, delay: 8, mood: "calm", dist: DAYS[S ? S.day : 0].dist }, o || {}); return sc; }
@@ -850,21 +887,31 @@ function tagsHtml(tags) { return `<div>${tags.map(([k, t]) => `<span class="tag 
 function sfxFor(tags, cash) { if (tags.some(([k]) => k === "bad")) Snd.play("bad"); else if (cash > 0) { Snd.play("stamp"); Snd.play("coin"); } else Snd.play("good"); }
 
 // ---------- меню ----------
+// стартовый экран: логотип, описание, вход и регистрация (игра только после входа)
+function landing() {
+  S = null; sc = { kind: "logo", key: "logo" };
+  $("#hud").innerHTML = ""; $("#whereL").textContent = "Заречинск"; $("#whereR").textContent = "ОПВ № 7";
+  panel(`<h2>ПРИСТАВ: СМЕНА</h2>
+    <p>Сатирическая игра про неделю судебного пристава в вымышленном Заречинске. Четыре района, двенадцать должников, суд с металлодетектором и начальник, который звонит вовремя.</p>
+    <ul class="feat"><li>Решайте между законом, совестью и планом</li><li>Спрашивайте, обыскивайте, составляйте протоколы</li><li>Прогресс и рекорд хранятся в облаке</li></ul>
+    <p class="who">Все персонажи и организации вымышлены. 16+: чёрный юмор, без жестокости. Для игры нужен аккаунт.</p>`);
+  setActions([{ label: "Войти", cls: "primary", fn: () => authScreen("in") }, { label: "Регистрация", fn: () => authScreen("up") }]);
+}
 function menu() {
+  if (!Cloud.user) return landing();
   S = null; sc = { kind: "street", key: "menu", dist: "old" };
   $("#hud").innerHTML = ""; $("#whereL").textContent = "Заречинск"; $("#whereR").textContent = "ОПВ № 7";
   panel(`<h2>ПРИСТАВ: СМЕНА</h2>
     <p>Неделя пристава в Заречинске: четыре района, двенадцать должников, суд и начальник, который звонит вовремя.</p>
     <p class="who">Все персонажи и организации вымышлены. 16+: чёрный юмор, без жестокости.${settings.best ? " Рекорд: " + settings.best + " из 100." : ""}</p>`);
   const saved = loadSave(), list = [], can = saved && !saved.over && saved.day < DAYS.length;
-  $("#panel").insertAdjacentHTML("beforeend", Cloud.user ? `<p class="who acc">Профиль: <b>${esc(Cloud.user)}</b> · сохранение в облаке</p>` : `<p class="who acc">Гость: прогресс только на этом устройстве.</p>`);
+  $("#panel").insertAdjacentHTML("beforeend", `<p class="who acc">Профиль: <b>${esc(Cloud.user)}</b> · сохранение в облаке</p>`);
   if (can) list.push({ label: "Продолжить: день " + (saved.day + 1), cls: "primary", fn: () => { S = saved; enteredKey = ""; run(); } });
   list.push({ label: can ? "Новая неделя" : "Начать неделю", cls: can ? "" : "primary", fn: () => { S = fresh(); enteredKey = ""; run(); } });
-  if (Cloud.user) list.push({ label: "Таблица рекордов", fn: board });
-  else { list.push({ label: "Войти", fn: () => authScreen("in") }); list.push({ label: "Регистрация", fn: () => authScreen("up") }); list.push({ label: "Таблица рекордов", fn: board }); }
+  list.push({ label: "Таблица рекордов", fn: board });
   list.push({ label: "Как играть", fn: howTo });
   list.push({ label: "Звук: " + (settings.sound ? "включён" : "выключен"), fn: () => { settings.sound = !settings.sound; writeSettings(); menu(); } });
-  if (Cloud.user) list.push({ label: "Выйти из профиля", fn: logout });
+  list.push({ label: "Выйти из профиля", fn: logout });
   setActions(list);
 }
 function logout() {
@@ -905,7 +952,7 @@ function authScreen(mode) {
       msg.textContent = "Готово, загружаю профиль…"; await syncAfterLogin(); Snd.play("good"); menu();
     } catch (e) { msg.textContent = e.message && /^(Логин|Введите|Пароль|Такой|Неверный|Регистрация)/.test(e.message) ? e.message : Cloud.human(e); Snd.play("bad"); busy = false; }
   };
-  setActions([{ label: up ? "Зарегистрироваться" : "Войти", cls: "primary", fn: go }, { label: up ? "У меня уже есть аккаунт" : "Нет аккаунта: регистрация", fn: () => authScreen(up ? "in" : "up") }, { label: "Назад", fn: menu }]);
+  setActions([{ label: up ? "Зарегистрироваться" : "Войти", cls: "primary", fn: go }, { label: up ? "У меня уже есть аккаунт" : "Нет аккаунта: регистрация", fn: () => authScreen(up ? "in" : "up") }, { label: "Назад", fn: landing }]);
 }
 function board() {
   sc = { kind: "street", key: "board", dist: "old" };
@@ -922,7 +969,8 @@ function howTo() {
   panel(`<h2>КАК ИГРАТЬ</h2>
     <p>Четыре дня, три должника в день. У каждого три шага: поговорить у двери, сверить документы, описать имущество.</p>
     <p>Нельзя изымать защищённое законом (жильё, бытовое, лекарства, детское, орудия труда) и чужое. Следите за документами: бывает тёзка, бывает уже оплаченный долг.</p>
-    <p>В суде рамка не всегда права. Между делами звонят, просят и подсказывают. Решения копятся и влияют на конец недели.</p>
+    <p>На входе в суд спросите о цели визита и о запрещённом, посмотрите сумку. Рамка молчит не всегда честно: при подозрении проводите личный обыск. Найденное оформляйте протоколом. Пропустите опасного человека, и пострадают судья, заседатели, участники процесса или граждане.</p>
+    <p>Между делами звонят, просят и подсказывают. Решения копятся и влияют на конец недели.</p>
     <p class="who">Каждое утро итоги: премия, замечание или выговор. Три выговора или лавина жалоб: увольнение.</p>`);
   setActions([{ label: "Назад", cls: "primary", fn: menu }]);
 }
@@ -943,26 +991,27 @@ function onEnter(st) {
   if (st.t === "debt") { Snd.play("step"); setTimeout(() => { if (sc.kind === "door") { Snd.play("knock"); Snd.play("bell"); } }, 700); }
   else if (st.t === "event" && st.id[0] === "b") Snd.play("ring"); else Snd.play("step");
 }
-function next() { S.step += 1; S.phase = "start"; S.picks = []; S.vis = 0; S.note = ""; S.result = null; S.tainted = false; run(); }
+function next() { S.step += 1; S.phase = "start"; S.picks = []; S.vis = 0; S.q = {}; S.note = ""; S.result = null; S.tainted = false; run(); }
 
 function morning() {
   const d = DAYS[S.day], D = DISTRICTS[d.dist]; scn("street", "m" + S.day, { dist: d.dist });
   let html = `<h2>${d.name}</h2>`;
   if (S.review) {
     const r = S.review, rn = { bonus: ["ПРЕМИЯ 3 000 ₽", "ok", "Начальник кисло улыбнулся и подписал бумагу."], rep: ["ВЫГОВОР", "bad", "Лыков зачитал приказ, не поднимая глаз."], note: ["ЗАМЕЧАНИЕ УСТНОЕ", "ok", "«Работайте». Ни хвалы, ни наказания."] }[r.kind];
-    html += `<div class="note"><b>Итоги вчерашнего дня.</b><br>Взыскано: ${esc(fmt(r.gained))} при плане ${esc(fmt(r.plan))}. Жалоб за день: ${r.comp}.</div><span class="tag ${rn[1]}">${rn[0]}</span><p>${esc(rn[2])}</p>`;
+    html += `<div class="note"><b>Итоги вчерашнего дня.</b><br>Взыскано: ${esc(fmt(r.gained))} при плане ${esc(fmt(r.plan))}. Жалоб за день: ${r.comp}.${r.inc ? " Инцидентов на входе в суд: " + r.inc + "." : ""}</div><span class="tag ${rn[1]}">${rn[0]}</span><p>${esc(rn[2])}</p>`;
   }
   html += `<p class="who">Район: ${esc(D.name)}. ${esc(D.blurb)}</p><p>План на день: <b>${esc(fmt(S.plans[S.day]))}</b>. Три адреса, дежурство в суде и телефон, который не замолкает.</p>`;
   panel(html);
-  setActions([{ label: S.day ? "На смену" : "Выйти на смену", cls: "primary", fn: () => { S.phase = "start"; S.step = 0; S.dayStart = { cash: S.stats.cash, law: S.stats.law, complaints: S.stats.complaints }; run(); } }]);
+  setActions([{ label: S.day ? "На смену" : "Выйти на смену", cls: "primary", fn: () => { S.phase = "start"; S.step = 0; S.dayStart = { cash: S.stats.cash, law: S.stats.law, complaints: S.stats.complaints, inc: S.incidents || 0 }; run(); } }]);
 }
 function dayDone() {
   const d = S.day, a = S.stats, ds = S.dayStart, gained = a.cash - ds.cash, comp = a.complaints - ds.complaints, law = a.law - ds.law, plan = S.plans[d];
   let kind = "note";
-  if (gained >= plan && comp <= 1 && law >= -1) kind = "bonus"; else if (gained < plan * 0.4 || comp >= 4 || law <= -4) kind = "rep";
+  const inc = (S.incidents || 0) - (ds.inc || 0);
+  if (gained >= plan && comp <= 1 && law >= -1 && !inc) kind = "bonus"; else if (gained < plan * 0.4 || comp >= 4 || law <= -4 || inc >= 2) kind = "rep";
   if (kind === "bonus") { S.salary += 3000; stat("boss", 1); Snd.play("good"); } else if (kind === "rep") { S.reprimands += 1; stat("boss", -1); Snd.play("bad"); }
-  S.review = { day: d, gained, plan, comp, law, kind };
-  if (S.reprimands >= 3 || a.complaints >= 14 || a.law <= -12) S.over = "fired";
+  S.review = { day: d, gained, plan, comp, law, kind, inc };
+  if (S.reprimands >= 3 || a.complaints >= 14 || a.law <= -12 || (S.incidents || 0) >= 4) S.over = "fired";
   else if (d + 1 >= DAYS.length) S.over = "end";
   else { S.day += 1; S.step = 0; S.phase = "morning"; }
   enteredKey = ""; run();
@@ -1102,37 +1151,70 @@ function courtScreen(st) {
   const v = VIS[st.ids[S.vis]], n = st.ids.length;
   if (!v) { scn("court", "cend", { p: null }); panel(`<h2>ДЕЖУРСТВО ЗАВЕРШЕНО</h2><p>Смена на входе окончена. Рамка металлодетектора молчит впервые за день.</p>`); setActions([{ label: "К следующему адресу", cls: "primary", fn: next }]); return; }
   const s = scn("court", "v" + v.id, { p: v.look });
+  const q = S.q = S.q || {}, visible = v.danger && !v.hide;
+  // найден запрещённый предмет: протокол даёт закон, изъятие без него это нарушение порядка
+  const seized = [{ label: "Составить протокол и изъять", cls: "primary", fn: () => cOut(v, "proto") }, { label: "Изъять без протокола", fn: () => cOut(v, "conf") }, { label: "Не пускать в здание", cls: "danger", fn: () => cOut(v, "refuse") }];
   if (S.phase === "start") {
-    s.beeping = v.beep; if (v.beep) setTimeout(() => Snd.play("beep"), 200);
-    panel(`<h2>${esc(v.name)}</h2><p>${esc(v.intro)}</p><p class="who">Рамка: ${v.beep ? "ПИЩИТ." : "молчит."}</p><q>${esc(v.say)}</q><p class="who">Посетитель ${S.vis + 1} из ${n}</p>`);
-    setActions([
-      { label: "Пропустить без досмотра", fn: () => cOut(v, "allow") },
-      { label: "Досмотреть сумку", cls: "primary", fn: () => { S.phase = "bag"; run(); } },
-      { label: "Не пускать", cls: "danger", fn: () => cOut(v, "blind") }
-    ]);
+    s.beeping = v.beep; if (v.beep && !q.beeped) { q.beeped = true; setTimeout(() => Snd.play("beep"), 200); }
+    let html = `<h2>${esc(v.name)}</h2><p>${esc(v.intro)}</p><p class="who">Рамка: ${v.beep ? "ПИЩИТ." : "молчит."}</p>`;
+    if (q.purpose) html += `<p class="who">Цель визита?</p><q>${esc(v.say)}</q>`;
+    if (q.ask) html += `<p class="who">Есть запрещённые предметы?</p><q>${esc(askAnswer(v))}</q>`;
+    panel(html + `<p class="who">Посетитель ${S.vis + 1} из ${n}</p>`);
+    const list = [];
+    if (!q.purpose) list.push({ label: "Спросить: с какой целью пришли?", fn: () => { q.purpose = true; run(); } });
+    if (!q.ask) list.push({ label: "Спросить: есть запрещённое?", fn: () => { q.ask = true; run(); } });
+    list.push({ label: "Досмотреть сумку", cls: "primary", fn: () => { S.phase = "bag"; run(); } });
+    list.push({ label: "Личный обыск", fn: () => { S.phase = "frisk"; run(); } });
+    list.push({ label: "Пропустить без досмотра", fn: () => cOut(v, "allow") });
+    list.push({ label: "Не пускать", cls: "danger", fn: () => cOut(v, "blind") });
+    setActions(list);
   } else if (S.phase === "bag") {
     s.beeping = false;
-    panel(`<h2>СОДЕРЖИМОЕ СУМКИ</h2><p>${v.bag.map(esc).join("<br>")}</p><div class="note">${v.danger ? esc(v.dangerNote || "Есть предмет, запрещённый к проносу в здание суда.") : "Ничего запрещённого."}</div>`);
-    setActions(v.danger ? [{ label: "Изъять и пропустить", cls: "primary", fn: () => cOut(v, "conf") }, { label: "Не пускать в здание", cls: "danger", fn: () => cOut(v, "refuse") }]
-      : [{ label: "Извиниться и пропустить", cls: "primary", fn: () => cOut(v, "pass") }]);
+    panel(`<h2>СОДЕРЖИМОЕ СУМКИ</h2><p>${v.bag.map(esc).join("<br>")}</p><div class="note">${visible ? esc(v.dangerNote || "Есть предмет, запрещённый к проносу в здание суда.") : "В сумке ничего запрещённого."}</div>`);
+    setActions(visible ? seized : [{ label: "Извиниться и пропустить", cls: "primary", fn: () => cOut(v, "pass") }, { label: "Личный обыск", fn: () => { S.phase = "frisk"; run(); } }]);
+  } else if (S.phase === "frisk") {
+    s.beeping = false;
+    const found = v.hide ? `<div class="note">Найдено: <b>${esc(v.hide.item)}</b>. Запрещено к проносу в суд.</div>` : visible ? `<div class="note">${esc(v.dangerNote || "Сверх найденного в сумке ничего нет.")}</div>` : `<div class="note">Карманы, обувь, одежда: ничего запрещённого.</div>`;
+    panel(`<h2>ЛИЧНЫЙ ОБЫСК</h2><p>Вы просите вывернуть карманы и снять верхнюю одежду.</p>${found}`);
+    setActions(v.danger ? seized : [{ label: "Извиниться и пропустить", cls: "primary", fn: () => cOut(v, "frisk") }]);
   } else if (S.phase === "cres") {
     s.beeping = false; panel(`<h2>${esc(S.result.title)}</h2>${tagsHtml(S.result.tags)}<p>${esc(S.result.text)}</p>`);
-    setActions([{ label: "Следующий", cls: "primary", fn: () => { S.vis += 1; S.phase = "start"; run(); } }]);
+    setActions([{ label: "Следующий", cls: "primary", fn: () => { S.vis += 1; S.phase = "start"; S.q = {}; run(); } }]);
   }
+}
+function askAnswer(v) {
+  if (v.ask) return v.ask;
+  if (!v.danger) return "Нет, только личные вещи.";
+  return v.soft ? "Ну… вязание же можно?" : "Да ничего такого… сумку посмотрите, сами всё увидите.";
+}
+// пропущенный опасный человек: страдает судья, заседатель, участник процесса или гражданин
+function incident(v, lead) {
+  S.incidents = (S.incidents || 0) + 1;
+  let h = 0; for (const ch of v.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const harm = HARM[(h + (S.seed >>> 0) + S.day) % HARM.length];
+  return { fx: { safety: -2, law: -1, complaints: 1 }, title: "ИНЦИДЕНТ", text: lead + " " + harm.text + " " + (v.inc || "Охрана смотрит на вас молча.") };
 }
 function cOut(v, kind) {
   let fx = {}, text = "", title = "РЕЗУЛЬТАТ";
   if (kind === "allow") {
-    if (v.danger && !v.soft) { fx = { safety: -1, law: -1 }; title = "ИНЦИДЕНТ"; text = "Пропустили без досмотра. " + (v.inc || "В зале потом потребовали вызвать наряд. Охрана смотрит на вас молча."); }
+    if (v.danger && !v.soft) { const r = incident(v, "Пропустили без досмотра."); fx = r.fx; title = r.title; text = r.text; }
     else if (v.soft) { fx = { law: -1 }; text = v.softAllow; }
     else if (v.friend) { fx = { boss: 1 }; text = v.allowQuip || v.quip; }
     else { fx = { law: 1 }; text = v.quip; }
+  } else if (kind === "proto") {
+    S.protocols = (S.protocols || 0) + 1;
+    fx = { safety: 1, law: 2 }; if (v.soft) fx.heart = -1; if (v.friend) fx.boss = -1;
+    text = (v.confQuip || "Предмет изъят под расписку. Человек проходит без нарушений.") + " Протокол составлен и подписан.";
   } else if (kind === "conf") {
-    fx = { safety: 1, law: 1 }; if (v.soft) fx.heart = -1; if (v.friend) { fx.law = 2; fx.boss = -1; } text = v.confQuip || "Предмет изъят под расписку. Человек проходит без нарушений.";
+    fx = { safety: 1, law: -1 }; if (v.soft) fx.heart = 1; if (v.friend) fx.boss = 1;
+    text = (v.confQuip || "Предмет изъят. Человек проходит без нарушений.") + " Протокола нет: формально вы нарушили порядок.";
+  } else if (kind === "frisk") {
+    fx = { complaints: v.beep ? 0 : (v.serial ? 2 : 1) }; if (v.friend) fx.boss = -1;
+    text = v.beep ? "Рамка пищала не зря: металл оказался законным. Человек понимающе кивает. " + v.quip : "Обыск ничего не дал, человек обижен и обещает жалобу. " + v.quip;
   } else if (kind === "refuse") { fx = { safety: 1, complaints: 1 }; text = "Не пустили. Человек обещает жалобу, но в здание не прошёл."; }
   else if (kind === "pass") {
-    fx = { complaints: 1 }; if (v.serial) fx.complaints = 2; if (v.friend) fx.boss = -1;
-    text = "Человек проходит, ворча про досмотр. " + v.quip;
+    if (v.hide) { const r = incident(v, "В сумке было чисто, но опасное лежало " + v.hide.where + ", а вы не проверили человека лично."); fx = r.fx; title = r.title; text = r.text; }
+    else { fx = { complaints: 1 }; if (v.serial) fx.complaints = 2; if (v.friend) fx.boss = -1; text = "Человек проходит, ворча про досмотр. " + v.quip; }
   } else if (kind === "blind") {
     if (v.danger) { fx = { safety: 1, complaints: 1 }; text = "Не пустили, и, как выяснилось, не зря. Человек уходит, обещая написать куда следует."; }
     else { fx = { complaints: 2, law: -1 }; text = "Вы отказали без причин. Человек возмущён, очередь шумит, жалоба уже пишется."; if (v.friend) fx.boss = -2; }
@@ -1156,7 +1238,7 @@ function endScreen() {
   Cloud.submitScore(score, S.day, end).catch(() => {});
   panel(`<h2>${esc(title)}</h2><p>${esc(text)}</p>
     <div class="bars">${bar("План недели: " + fmt(a.cash) + " из " + fmt(planAll), cash)}${bar("Законность", law)}${bar("Совесть", heart)}${bar("Безопасность суда", safe)}</div>
-    <p class="who">Оценка: ${score} из 100 · Жалоб: ${a.complaints} · Премий: ${fmt(S.salary)} · Выговоров: ${S.reprimands}</p>
+    <p class="who">Оценка: ${score} из 100 · Жалоб: ${a.complaints} · Премий: ${fmt(S.salary)} · Выговоров: ${S.reprimands} · Протоколов: ${S.protocols || 0} · Инцидентов на входе: ${S.incidents || 0}</p>
     ${S.epi.length ? `<div class="note"><b>Ваши решения.</b><ul>${S.epi.slice(0, 8).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
     ${fates ? `<div class="note"><b>Что стало с людьми.</b><ul>${fates}</ul></div>` : ""}`);
   Snd.play(end === "model" || end === "avg" ? "good" : "bad");

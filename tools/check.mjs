@@ -57,7 +57,7 @@ vm.runInContext(code, ctx, { filename: "game.js" });
 vm.runInContext("var __acts = []; setActions = function (l) { __acts = l; };", ctx);
 
 // проверка данных
-const data = vm.runInContext(`({ CASES, VISITORS, EVENTS, DAYS, ICONS, legalMax, ENDINGS })`, ctx);
+const data = vm.runInContext(`({ CASES, VISITORS, HARM, EVENTS, DAYS, ICONS, legalMax, ENDINGS })`, ctx);
 const errs = [];
 const ids = new Set();
 for (const c of data.CASES) {
@@ -72,7 +72,13 @@ for (const c of data.CASES) {
 }
 const used = data.DAYS.flatMap((d) => d.debtors);
 if (used.length !== data.CASES.length || new Set(used).size !== used.length) errs.push("должники по дням не совпадают с CASES");
-for (const v of data.VISITORS) { if (!v.danger && !v.quip) errs.push(v.id + ": нет quip"); if (v.danger && !v.confQuip && !v.softAllow) errs.push(v.id + ": нет confQuip"); }
+for (const v of data.VISITORS) {
+  if (!v.danger && !v.quip) errs.push(v.id + ": нет quip"); if (v.danger && !v.confQuip && !v.softAllow) errs.push(v.id + ": нет confQuip");
+  if (v.hide && (!v.danger || !v.hide.item || !v.hide.where || !v.ask)) errs.push(v.id + ": неполный тайник (нужны danger, hide.item, hide.where, ask)");
+  if (v.hide && v.bag.some((b) => b.toLowerCase().includes(v.hide.item.toLowerCase().split(" ")[0]))) errs.push(v.id + ": тайник виден в сумке");
+}
+if (!data.HARM || data.HARM.length < 4) errs.push("HARM: нужно 4 пострадавших");
+if (data.VISITORS.filter((v) => v.hide).length < 3) errs.push("мало посетителей с тайником");
 for (const e of data.EVENTS) if (e.choices.length < 3) errs.push(e.id + ": мало выборов");
 if (errs.length) { console.error("ДАННЫЕ:\n" + errs.join("\n")); process.exit(1); }
 console.log("данные: ok (должников " + data.CASES.length + ", посетителей " + data.VISITORS.length + ", событий " + data.EVENTS.length + ")");
