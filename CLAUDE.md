@@ -7,7 +7,7 @@
 - Проверяй сделанное: `node tools/check.mjs` (синтаксис + автоигра на 200 случайных прохождений) и просмотр в браузере в ширине 375x812. Не говори «готово», пока это не прогнано.
 - Честно пиши, что не проверено на реальном устройстве (звук, касания, safe-area).
 - Новая крупная задача начинается с раунда вопросов: нумерованные ❓ с рекомендацией ➡️, ждать ответа. Мелкие правки и баги: без опроса.
-- Ничего не публиковать (GitHub Pages, Artifact) без слова владельца. К Roblox проект не относится, в Roblox ничего не загружать.
+- Ничего нового не публиковать (GitHub Pages, Artifact) без слова владельца. К Roblox проект не относится, в Roblox ничего не загружать.
 - Коммиты: `git -c user.name=dev -c user.email=cas1no21@outlook.com commit ...` со строкой `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
 
 ## Тон и рамки контента
@@ -24,3 +24,6 @@
 
 ## Публикация
 Исходники в `src/` (head.html, data.js, engine.js); `node tools/build.mjs` собирает `pristav.html` (без doctype, формат Artifact) и `index.html`; не правь их руками. Для статичного хостинга: `node tools/build.mjs` собирает `index.html` с doctype и viewport.
+
+## Аккаунты и облако (2026-11-03)
+Сайт: https://joycas1no.github.io/pristav/ (репозиторий JoyCas1no/pristav, Pages из main). Аккаунты на Supabase (проект `pristav`, id `jctckwqczujjrknrwdyb`): модуль `src/cloud.js` (чистый fetch, anon-ключ публичный), схема и политики RLS в `supabase/schema.sql`. Вход по логину: в Auth служебная почта `<логин>@pristav.game`, настоящая почта лежит в `profiles.email` (видна только владельцу), подтверждение почты в Supabase выключено. Облако: сохранение недели и настройки (`saves`), лучший результат (`scores` через `submit_score`), таблица в меню. Сброса пароля по почте нет. Ключ service_role нигде не хранить. Тестовый скрипт `tools/_cloudtest.mjs` (в git нет) создаёт реальных пользователей: после него удалить их в Supabase → Authentication → Users.
