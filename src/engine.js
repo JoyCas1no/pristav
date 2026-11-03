@@ -198,6 +198,19 @@ function sceneCourt() {
   if (beep) { R(24, 22, 48, 1, "#ff6060"); }
   if (sc.p) person(sc.p, 48, 22, sc);
 }
+// кабинет пристава: главное меню. Предметы на сцене это кнопки (hotspots)
+function sceneOffice() {
+  R(0, 0, 96, 72, "#3a3d4a"); R(0, 0, 96, 4, "#2a2c36"); R(0, 46, 96, 2, "#2a2c36");
+  R(0, 54, 96, 18, "#4a3a2c"); for (let x = 0; x < 96; x += 12) R(x, 54, 1, 18, "rgba(0,0,0,.25)"); R(0, 54, 96, 1, "#2a1f19");
+  R(30, 6, 36, 24, "#1a1a22"); R(32, 8, 32, 20, "#1c2a44"); R(47, 8, 2, 20, "#1a1a22"); R(32, 17, 32, 2, "#1a1a22"); R(56, 10, 4, 4, "#f0e8c0");
+  R(33, 20, 6, 8, "#161c30"); R(41, 16, 7, 12, "#161c30"); R(51, 19, 6, 9, "#161c30"); R(58, 15, 5, 13, "#161c30");
+  for (let i = 0; i < 5; i++) R(34 + i * 6, 22 + (i % 2) * 2, 1, 1, ((T >> 5) + i) % 4 ? "#e8c860" : "#3a3a44");
+  R(3, 13, 22, 42, "#2a1f19"); R(5, 15, 18, 40, "#6a4a30"); R(8, 18, 12, 10, "#9ac4d8"); R(8, 32, 12, 18, "#7a5638"); R(19, 35, 3, 3, "#e0b24a");
+  R(72, 20, 22, 36, "#5a6068"); R(74, 22, 18, 32, "#8a9099"); R(78, 34, 10, 10, "#d9a441"); R(81, 37, 4, 4, "#2b2b33"); R(74, 26, 18, 1, "#5a6068"); R(74, 48, 18, 1, "#5a6068");
+  R(32, 32, 32, 16, "#3a2a1c"); R(34, 34, 28, 12, "#a4733c"); R(36, 36, 6, 5, "#f3ecd4"); R(44, 36, 8, 4, "#f3ecd4"); R(54, 37, 6, 6, "#f3ecd4"); R(48, 42, 5, 3, "#e0b24a");
+  R(14, 56, 68, 5, "#8a5a34"); R(14, 61, 68, 11, "#6a4224"); R(18, 61, 4, 11, "#4a2e18"); R(74, 61, 4, 11, "#4a2e18");
+  R(78, 50, 2, 6, "#2b2b33"); R(75, 48, 8, 3, (T >> 6) % 9 ? "#e8c860" : "#b89a40");
+}
 function sceneLogo() {
   R(0, 0, 96, 72, "#161826");
   for (let i = 0; i < 16; i++) R((i * 37 + 5) % 96, (i * 13) % 34, 1, 1, (i + (T >> 4)) % 5 === 0 ? "#6a6a7a" : "#f0e8c0");
@@ -241,7 +254,7 @@ function sceneStair() {
 function render() {
   T++; const k = sc.kind; Music.mood = k === "court" ? 1 : 0;
   if (k === "door") sceneDoor(); else if (k === "room") sceneRoom(); else if (k === "court") sceneCourt();
-  else if (k === "desk") sceneDesk(); else if (k === "call") sceneCall(); else if (k === "stair") sceneStair(); else if (k === "logo") sceneLogo(); else sceneStreet();
+  else if (k === "desk") sceneDesk(); else if (k === "call") sceneCall(); else if (k === "stair") sceneStair(); else if (k === "logo") sceneLogo(); else if (k === "office") sceneOffice(); else sceneStreet();
 }
 // сцена пересоздаётся только при смене ключа
 function scn(kind, key, o) { if (sc.kind === kind && sc.key === key) { if (o && o.mood) sc.mood = o.mood; return sc; } sc = Object.assign({ kind, key, open: 0, target: 0.3, delay: 8, mood: "calm", dist: S && S.days ? S.days[S.day].dist : "old" }, o || {}); return sc; }
@@ -261,7 +274,19 @@ function setActions(list) {
   const el = $("#actions"); el.innerHTML = "";
   for (const a of list) { const b = document.createElement("button"); b.textContent = a.label; if (a.cls) b.className = a.cls; if (a.disabled) b.disabled = true; b.addEventListener("click", a.fn); el.appendChild(b); }
 }
-function panel(html) { $("#panel").innerHTML = html; }
+function panel(html) { $("#panel").innerHTML = html; $("#hot").innerHTML = ""; }
+// предметы кабинета поверх сцены: {x, y (в % сцены), icon, label, state, off, big, fn}
+function hotspots(list) {
+  const el = $("#hot"); el.innerHTML = "";
+  for (const h of list) {
+    const b = document.createElement("button"); b.className = "hs" + (h.big ? " big" : "") + (h.off ? " off" : "");
+    b.style.left = h.x + "%"; b.style.top = h.y + "%"; b.setAttribute("aria-label", h.label + (h.state ? ": " + h.state : ""));
+    const cnv = document.createElement("canvas"); cnv.width = 16; cnv.height = 16; drawIcon(cnv, h.icon);
+    const t = document.createElement("span"); t.textContent = h.label; b.append(cnv, t);
+    if (h.state) { const s = document.createElement("small"); s.textContent = h.state; b.appendChild(s); }
+    b.addEventListener("click", h.fn); el.appendChild(b);
+  }
+}
 function tagsHtml(tags) { return `<div>${tags.map(([k, t]) => `<span class="tag ${k}">${esc(t)}</span>`).join("")}</div>`; }
 function sfxFor(tags, cash) { if (tags.some(([k]) => k === "bad")) Snd.play("bad"); else if (cash > 0) { Snd.play("stamp"); Snd.play("coin"); } else Snd.play("good"); }
 
@@ -278,24 +303,25 @@ function landing() {
 }
 function menu() {
   if (!Cloud.user) return landing();
-  S = null; sc = { kind: "street", key: "menu", dist: "old" };
-  $("#hud").innerHTML = ""; $("#whereL").textContent = "Заречинск"; $("#whereR").textContent = "ОПВ № 7";
+  S = null; sc = { kind: "office", key: "office" };
+  $("#hud").innerHTML = ""; $("#whereL").textContent = "Заречинск"; $("#whereR").textContent = "Кабинет";
   const rk = rankOf(CAREER.xp), cur = RANKS[rk], nx = RANKS[rk + 1], pct = nx ? Math.floor((CAREER.xp - cur.xp) / (nx.xp - cur.xp) * 100) : 100;
   panel(`<h2>ПРИСТАВ: СМЕНА</h2>
     <p><b>${esc(cur.n)}</b> · ${esc(Cloud.user)}</p>
     <div class="bars"><div class="bar"><span>Опыт</span><b>${CAREER.xp}</b><i><span style="width:${pct}%"></span></i></div></div>
     <p class="who">${nx ? "До звания «" + esc(nx.n) + "»: " + (nx.xp - CAREER.xp) + " оп." : "Высшее звание."} Смен: ${CAREER.shifts} · Деньги: ${esc(fmt(CAREER.money))} · Лучший результат: ${settings.best || 0} из 100.</p>
     <p class="who">Смена занимает 5–10 минут. Район и дела каждый раз новые, с ростом звания открываются новые районы.</p>`);
-  const sv = loadSave(), cont = sv && sv.shift && !sv.shift.over, list = [];
-  if (cont) list.push({ label: "Продолжить смену", cls: "primary", fn: () => { S = sv.shift; Object.assign(CASE, S.gen || {}); enteredKey = ""; run(); } });
-  list.push({ label: cont ? "Начать новую смену" : "Начать смену", cls: cont ? "" : "primary", fn: startShift });
-  list.push({ label: "Склад и снаряжение", fn: shop });
-  list.push({ label: "Таблица рекордов", fn: board });
-  list.push({ label: "Как играть", fn: howTo });
-  list.push({ label: "Звук: " + (settings.sound ? "включён" : "выключен"), fn: () => { settings.sound = !settings.sound; writeSettings(); menu(); } });
-  list.push({ label: "Музыка: " + (settings.music ? "включена" : "выключена"), fn: () => { settings.music = !settings.music; writeSettings(); Music.sync(); menu(); } });
-  list.push({ label: "Выйти из профиля", fn: logout });
-  setActions(list);
+  const sv = loadSave(), cont = sv && sv.shift && !sv.shift.over, hs = [];
+  hs.push({ x: 15, y: 47, big: true, icon: "door", label: cont ? "ПРОДОЛЖИТЬ" : "СМЕНА", fn: cont ? () => { S = sv.shift; Object.assign(CASE, S.gen || {}); enteredKey = ""; run(); } : startShift });
+  if (cont) hs.push({ x: 15, y: 12, icon: "calendar", label: "НОВАЯ", fn: startShift });
+  hs.push({ x: 85, y: 52, big: true, icon: "safe", label: "СКЛАД", fn: shop });
+  hs.push({ x: 50, y: 40, icon: "trophy", label: "РЕКОРДЫ", fn: board });
+  hs.push({ x: 29, y: 81, icon: "book", label: "ПРАВИЛА", fn: howTo });
+  hs.push({ x: 50, y: 81, icon: "speaker", label: "ЗВУК", state: settings.sound ? "вкл" : "выкл", off: !settings.sound, fn: () => { settings.sound = !settings.sound; writeSettings(); menu(); } });
+  hs.push({ x: 71, y: 81, icon: "radio", label: "МУЗЫКА", state: settings.music ? "вкл" : "выкл", off: !settings.music, fn: () => { settings.music = !settings.music; writeSettings(); Music.sync(); menu(); } });
+  hs.push({ x: 88, y: 12, icon: "exit", label: "ВЫЙТИ", fn: logout });
+  hotspots(hs);
+  setActions([]);
 }
 function startShift() { S = fresh(); enteredKey = ""; run(); }
 function shop() {

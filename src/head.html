@@ -46,6 +46,17 @@ button:disabled { opacity: .45; cursor: default; }
 .board li span { display: inline-block; min-width: 9em; }
 .board li.me { color: var(--gold); }
 .acc { margin-top: 6px; }
+.stage { position: relative; }
+#hot { position: absolute; inset: 3px; pointer-events: none; }
+.hs { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; min-width: 54px; min-height: 52px; padding: 4px 5px 3px; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; font-family: var(--font-display); font-size: 6px; line-height: 1.3; color: #f4ecd0; background: rgba(21, 23, 29, .84); border: 2px solid var(--gold); box-shadow: 2px 2px 0 #000; }
+.hs canvas { width: 30px; height: 30px; image-rendering: pixelated; display: block; }
+.hs small { font-family: var(--font-body); font-size: 15px; color: var(--gold); letter-spacing: 0; }
+.hs.big { min-width: 70px; min-height: 66px; }
+.hs.big canvas { width: 40px; height: 40px; }
+.hs.off { opacity: .6; border-color: #6d6552; }
+.hs.off small { color: #c4473a; }
+.hs:hover, .hs:focus-visible { background: rgba(60, 50, 20, .92); }
+.hs:active { transform: translate(-50%, -50%) translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
 .feat { margin: 8px 0; padding-left: 18px; }
 .feat li { padding: 2px 0; }
 .docs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
@@ -73,7 +84,7 @@ button:disabled { opacity: .45; cursor: default; }
 <div id="app">
   <div class="where"><span id="whereL"></span><span id="whereR"></span><button id="snd" aria-label="Звук">♪</button></div>
   <div class="hud" id="hud"></div>
-  <canvas id="scene" width="96" height="72"></canvas>
+  <div class="stage"><canvas id="scene" width="96" height="72"></canvas><div id="hot"></div></div>
   <div class="panel" id="panel"></div>
   <div class="actions" id="actions"></div>
 </div>
