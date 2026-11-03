@@ -558,6 +558,241 @@ const ENDINGS = {
   avg: ["ОБЫЧНЫЙ ПРИСТАВ", "Неделя как неделя. Закон слегка пострадал, совесть слегка потёрлась, план почти выполнен. В Заречинске бывало хуже."]
 };
 
+// ---------- генератор должников: архетип + имя + набор вещей + реплики, чтобы дела не повторялись ----------
+// предмет: [значок, название, [мин, макс] цена, защищён законом, комментарий]
+const FIRST_M = ["Александр", "Борис", "Виктор", "Геннадий", "Дмитрий", "Евгений", "Иван", "Константин", "Леонид", "Михаил", "Николай", "Олег", "Павел", "Роман", "Сергей", "Тимофей", "Фёдор", "Юрий"];
+const PATR_M = ["Александрович", "Борисович", "Викторович", "Геннадьевич", "Дмитриевич", "Евгеньевич", "Иванович", "Константинович", "Леонидович", "Михайлович", "Николаевич", "Олегович", "Павлович", "Романович", "Сергеевич", "Тимофеевич", "Фёдорович", "Юрьевич"];
+const FIRST_F = ["Анна", "Валентина", "Галина", "Дарья", "Елена", "Зоя", "Ирина", "Лидия", "Марина", "Надежда", "Ольга", "Раиса", "Светлана", "Татьяна", "Юлия", "Вера"];
+const SUR_M = ["Белов", "Громов", "Дроздов", "Ермаков", "Жуков", "Зуев", "Комаров", "Лаптев", "Маслов", "Носов", "Осипов", "Панов", "Рыжов", "Сидоров", "Титов", "Уваров", "Фролов", "Щербаков", "Кузнецов", "Беляев", "Тихонов", "Гусев"];
+const CREDITORS = ["УК «Заречинская»", "Банк «Северный путь»", "МФО «Быстрый рубль»", "Энергосбыт Заречинска", "Водоканал", "Интернет-провайдер «Скорость»", "Магазин «Техно-Рай» (рассрочка)", "Налоговый отдел района", "Автосалон «Вираж»", "ООО «Тепло-Сервис»"];
+const FRIDGE = ["fridge", "Холодильник", [8000, 10000], true, "Предмет быта первой необходимости. Изъятию не подлежит."];
+const KETTLE = ["kettle", "Чайник", [700, 1300], true, "Кухонная утварь, необходимая в быту."];
+const WASHER = ["washer", "Стиральная машина", [7000, 9500], true, "Бытовая необходимость, изъятию не подлежит."];
+const MICRO = ["microwave", "Микроволновка", [2500, 3500], true, "Бытовая техника первой необходимости."];
+const PHONE = ["phone", "Телефон", [7000, 12000], true, "Нужен для связи. По закону в первую очередь не изымается."];
+const TV = (lo, hi, n) => ["tv", "Телевизор", [lo, hi], false, n || "Работает, но к долгу отношения не имеет."];
+const ARCH = [
+  { id: "retiree_f", g: "f", dists: ["old", "dacha"], age: [66, 84], debt: [9000, 32000], hard: 2, creds: [0, 3, 4, 7],
+    look: { style: ["bun", "curly"], extra: [["scarf"], ["glasses"], []], old: true },
+    must: [["pills", "Лекарства", [1500, 2500], true, "Сердечные препараты. Изымать нельзя."], FRIDGE],
+    pool: [TV(3000, 6000, "Старый телевизор, показывает половину каналов."), ["carpet", "Ковёр", [1500, 3000], false, "Висит на стене ещё с советских времён. Ценность скорее семейная."], ["radio", "Радиоприёмник", [1500, 2500], false, "Любимая передача строго по расписанию."], ["clock", "Настенные часы", [2500, 4500], false, "Бьют невпопад, но идут."], ["sewing", "Швейная машинка", [3500, 4500], true, "Единственная подработка: орудие труда, изъятию не подлежит."], KETTLE], pick: 3,
+    intro: ["Дверь с тремя замками. За цепочкой пожилая женщина в вязаной кофте.", "Открывает бабушка в халате и тапках, из квартиры пахнет валерьянкой и пирогами.", "Сначала слышно, как гремят замки, потом показывается женщина с половником."],
+    line: ["Я пенсию получаю пятого. Подождите немного, я всё отдам. Лекарства не трогайте.", "Милый, я за квартиру всегда платила! Это они там что-то напутали.", "Проходите, чай пьём. Только вещи мои не смотрите, они мне как память."],
+    hint: ["Пенсия небольшая, заметная часть уходит на лекарства.", "Одинокая, дети далеко. Соседи говорят, что она всем раздаёт варенье."],
+    fs: ["Часть вещей унесли. Теперь она слушает чужой телевизор через стенку.", "Вещи описали и унесли, соседка принесла суп «без причины»."], fm: ["Пенсию пересчитали, и впервые за месяц в доме появились яблоки.", "Платит по частям и каждый раз присылает вам открытку."] },
+  { id: "retiree_m", g: "m", dists: ["old", "dacha"], age: [68, 86], debt: [12000, 38000], hard: 2, creds: [0, 3, 4, 5],
+    look: { style: ["short", "bald"], extra: [["glasses"], ["medal"], []], old: true },
+    must: [["medals", "Государственные награды", [25000, 35000], true, "Государственные награды изъятию не подлежат."], ["pills", "Лекарства", [1500, 2500], true, "Нужны ежедневно. Изымать нельзя."]],
+    pool: [["radio", "Радиоприёмник", [1500, 3000], false, "Слушает новости, ворчит и всё равно слушает."], ["watch", "Командирские часы", [3000, 9000], false, "Идут точнее хозяина."], ["coins", "Коллекция монет", [8000, 16000], false, "Хозяин знает каждую монету в лицо."], ["bike", "Велосипед", [4000, 7000], false, "Ездит на нём на дачу и обратно."], TV(4000, 9000), FRIDGE], pick: 3,
+    intro: ["Невысокий старик стоит ровно, как на построении.", "Дверь открывает дед с газетой «Заречинский вестник» и очками на лбу.", "За дверью радио, потом шаги: открывает сухощавый мужчина с прямой спиной."],
+    line: ["Долг признаю, но платить нечем. Пенсию я отдаю внучке, ей учиться.", "Я служил, я честный. Это какое-то недоразумение, молодой человек.", "Заходите, только ботинки снимите. Награды мои не трогайте, они не мои, они государственные."],
+    hint: ["Бывший военный. Награды в серванте: по закону неприкосновенны.", "Живёт один, пенсию делит с внучкой-студенткой."],
+    fs: ["Описали часы и монеты. Он сказал «ну что ж» и поставил чайник.", "Вещи унесли, но награды остались на стене. Соседи принесли пирог."], fm: ["Он отдаёт по пятьсот рублей и расписывается в тетрадке, как на проверке.", "Дед прислал вам из пенсии конфеты «в счёт благодарности»."] },
+  { id: "driver_m", g: "m", dists: ["zone", "dacha"], age: [30, 55], debt: [25000, 90000], hard: 1, creds: [1, 2, 6, 8],
+    look: { style: ["short", "bald"], extra: [["cap"], []] },
+    must: [["car", "Автомобиль-кормилец", [60000, 95000], true, "Единственный заработок: таксует. Рабочий инструмент, изъятию не подлежит."], PHONE],
+    pool: [TV(8000, 20000), ["watch", "Часы «золотые»", [5000, 15000], false, "На деле позолоченные, но хозяин клянётся в обратном."], ["console", "Приставка", [15000, 25000], false, "Играет с сыном по выходным."], FRIDGE, ["amp", "Колонки", [6000, 12000], false, "Звук такой, что слышно в соседнем подъезде."]], pick: 3,
+    intro: ["Гараж, из-под машины торчат ноги. Ноги вылезают и оказываются мужчиной в комбинезоне.", "Открывает мужчина с термосом, видно, что вернулся с ночной смены.", "За калиткой гавкает пёс, потом выходит хозяин в куртке с эмблемой такси."],
+    line: ["Платить буду, у меня заказы пошли. Машину не трогайте, это мой хлеб.", "Я ночью работаю, днём сплю. Вы мне сон портите.", "Берите что хотите, только не машину. На ней вся семья едет."],
+    hint: ["Работает таксистом. Машина оформлена как рабочий инструмент.", "Долг по рассрочке, платит с задержками, но платит."],
+    fs: ["Колонки и часы унесли. Такси продолжает ездить, радио в нём стало тише.", "Изъяли лишнее. Он завёл новый график и, кажется, стал меньше ругаться."], fm: ["Он платит по тысяче с каждой смены и каждый раз спрашивает, не подвезти ли вас.", "Договорились о графике. Он довёз вас до дома и не взял денег."] },
+  { id: "cook_f", g: "f", dists: ["old", "shore"], age: [28, 58], debt: [15000, 60000], hard: 1, creds: [1, 2, 6, 7],
+    look: { style: ["bun", "long"], extra: [[], ["scarf"]] },
+    must: [["oven", "Печь для выпечки", [30000, 50000], true, "Профессиональная. Орудие труда, изъятию не подлежит."], ["mixer", "Тестомес", [15000, 25000], true, "Без него кондитерской нет. Орудие труда."]],
+    pool: [["coffee", "Кофемашина", [6000, 14000], false, "Для клиентов, куплена в рассрочку и не оплачена."], TV(5000, 12000), ["earrings", "Золотые серьги", [5000, 12000], false, "Подарок к юбилею, надевала дважды."], ["vinyl", "Пластинки", [6000, 12000], false, "Под них замешивает тесто."], FRIDGE], pick: 3,
+    intro: ["Из-за двери валит запах ванили. Открывает женщина в муке по локоть.", "Домашняя кондитерская в панельке: на каждой поверхности коржи.", "Дверь открывает женщина в фартуке с надписью «Торты на заказ»."],
+    line: ["У меня сегодня три заказа, не мешайте! Печь не берите, я с неё живу.", "Хотите торт? Только не говорите, что вы налоговая.", "Подождите минутку, у меня крем садится."],
+    hint: ["Печёт на заказ, налоги платит как самозанятая. Печь и миксер рабочие.", "Поставщик муки поднял цены, отсюда и долг."],
+    fs: ["Описали кофемашину и серьги. Торты по-прежнему выходят на заказ.", "Лишнее унесли, печь на месте. Утром у двери вас ждёт коробка с эклерами."], fm: ["Долг закрыт частями. Вы подозреваете подкуп эклерами, но признать это не готовы.", "Она платит ровно в срок и приносит вам по пятницам булочку."] },
+  { id: "gamer_m", g: "m", dists: ["shore", "zone"], age: [19, 34], debt: [20000, 85000], hard: 0, creds: [2, 6, 5, 1],
+    look: { style: ["short", "curly"], extra: [["cap"], ["glasses"], []] },
+    must: [PHONE],
+    pool: [["pc", "Игровой ПК", [50000, 70000], false, "С подсветкой, на нём «работа» в кавычках."], ["console", "Приставка", [18000, 25000], false, "Два геймпада, игра про приставов."], ["sneakers", "Кроссовки", [5000, 12000], false, "Коллекционные, в коробке."], ["laptop", "Ноутбук", [14000, 22000], true, "Подтверждён справкой самозанятого как рабочий инструмент."], MICRO, KETTLE], pick: 4,
+    intro: ["Дверь открывает парень в наушниках на шее, за спиной светится монитор.", "Парень в мятой футболке с мемом, в квартире тишина и мерцание.", "Открывает молодой человек, не отрывая глаз от экрана телефона."],
+    line: ["Это недоразумение. Я вообще-то стартап.", "Я платить буду, как только пройду этого босса.", "Мне срочно на стрим, давайте быстрее."],
+    hint: ["Живёт на кредитках. «Работает» стримером, зрителей пока двое: мама и бот.", "Родители отправили на съём, обещали «присматривать»."],
+    fs: ["ПК унесли. Стрим закончился на полуслове, чат писал «F».", "Лишнее изъяли. Парень впервые за год выспался."], fm: ["Он устроился курьером. Раз в неделю присылает вам скриншот «я молодец».", "Долг растянули. Он признался, что «стартап» был просто игрой."] },
+  { id: "craftsman_m", g: "m", dists: ["zone", "dacha"], age: [32, 60], debt: [28000, 95000], hard: 1, creds: [1, 6, 8, 7],
+    look: { style: ["short", "bald"], extra: [["helmet"], ["beard"], []] },
+    must: [["welder", "Сварочный аппарат", [30000, 45000], true, "Орудие труда, изъятию не подлежит."], ["drill", "Перфоратор", [18000, 26000], true, "Орудие труда, изъятию не подлежит."]],
+    pool: [TV(6000, 15000), ["bike", "Велосипед", [4000, 9000], false, "Ездит на нём в гараж по выходным."], ["radio", "Радиоприёмник", [1500, 3000], false, "Орёт на всю мастерскую."], ["watch", "Часы", [4000, 12000], false, "Подарок бригады, идут вперёд на семь минут."], FRIDGE], pick: 3,
+    intro: ["Мастерская, искры, запах металла. Из-за маски вылезает мужчина.", "Открывает мужчина в рабочей робе с монтажкой в руке.", "В гараже стучит молот, хозяин выходит, вытирая руки о штаны."],
+    line: ["Заказчик не заплатил, вот и долг. Инструмент не берите, я им кормлюсь.", "Я чиню всем подряд. А мне теперь долги.", "Сварка — это моя работа. Всё остальное берите."],
+    hint: ["Частный мастер. Аппарат и перфоратор нужны для работы и защищены законом.", "Заказчик пропал вместе с деньгами, отсюда и долг."],
+    fs: ["Лишнее унесли. Мастерская работает, радио стало тише.", "Описали часы и велосипед. Он сварил вам на память подкову."], fm: ["Он чинит вам дверь бесплатно и отдаёт по частям.", "Договорились о графике. Рассчитывается заказами."] },
+  { id: "musician_m", g: "m", dists: ["old", "shore"], age: [24, 55], debt: [15000, 55000], hard: 1, creds: [1, 2, 5],
+    look: { style: ["curly", "short"], extra: [["cap"], []] },
+    must: [["amp", "Усилитель", [25000, 35000], true, "Рабочий инструмент: играет в ресторане. Изъятию не подлежит."], ["guitar", "Гитара", [8000, 15000], true, "Основной инструмент. Без неё он не работает."]],
+    pool: [["vinyl", "Пластинки", [8000, 14000], false, "Оригиналы, берёт по одной в руки."], ["watch", "Часы", [4000, 12000], false, "Подарок от публики."], ["coffee", "Кофемашина", [6000, 14000], false, "В долг у «Техно-Рая»."], TV(5000, 12000), FRIDGE], pick: 3,
+    intro: ["Квартира в звуках гитары. Открывает мужчина с медиатором за ухом.", "За дверью репетиция. Музыка стихает, шаги, дверь открывается.", "Открывает мужчина в футболке с группой, за спиной слышен бас."],
+    line: ["Платить буду с концерта. Гитару не трогайте, это не гитара, это я.", "У меня на субботу свадьба, зал уже заплатил. Подождите.", "Могу сыграть, если это что-то решит."],
+    hint: ["Играет по ресторанам и свадьбам. Усилитель и гитара рабочие.", "Долг за аренду зала, где репетировал."],
+    fs: ["Описали пластинки и часы. На бис он сыграл вам «Прощание славянки» в рок-обработке.", "Лишнее изъяли. В субботу он сыграл свадьбу и закрыл часть долга."], fm: ["Он посвятил вам песню. Она про долги и звучит неожиданно трогательно.", "Платит с концертов и присылает афиши."] },
+  { id: "mom_f", g: "f", dists: ["old", "shore", "dacha"], age: [25, 42], debt: [14000, 55000], hard: 2, creds: [0, 1, 2, 6],
+    look: { style: ["long", "curly", "bun"], extra: [[], ["scarf"]] },
+    must: [["crib", "Детская кроватка", [6000, 8000], true, "Предмет для ребёнка. Изъятию не подлежит."], WASHER],
+    pool: [["tablet", "Планшет", [12000, 18000], true, "Для дистанционных занятий ребёнка. Изъятию не подлежит."], TV(6000, 14000), ["earrings", "Золотые серьги", [6000, 12000], false, "Подарок к свадьбе."], ["coffee", "Кофемашина", [8000, 15000], false, "Куплена «на радостях» в рассрочку."], FRIDGE], pick: 3,
+    intro: ["За дверью детский плач и телевизор. Открывает уставшая женщина с ребёнком на руках.", "Открывает молодая женщина с ложкой каши и тапком в другой руке.", "Дверь открывается на цепочку, за ней сонное лицо и разбросанные игрушки."],
+    line: ["Тише, пожалуйста, он только уснул. Я всё отдам, как только муж вернётся с вахты.", "Только кроватку не берите. Всё остальное, ну… берите.", "У меня на руках двое. Вы же понимаете."],
+    hint: ["Муж на вахте, пособие приходит с задержками. Детские вещи защищены законом.", "Одна с ребёнком. Работу ищет, пока малыш в садике."],
+    fs: ["Описали серьги и телевизор. Мультики теперь идут с планшета.", "Лишнее изъяли, детское оставили. Соседка принесла коляску «на время»."], fm: ["Муж вернулся с вахты, долг закрыли частями. Она прислала вам рисунок от ребёнка.", "Она нашла работу, платит стабильно. Малыш машет вам в окне."] },
+  { id: "shop_f", g: "f", dists: ["shore", "zone", "old"], age: [35, 62], debt: [30000, 120000], hard: 1, creds: [1, 2, 7, 8],
+    look: { style: ["bun", "long"], extra: [["glasses"], []] },
+    must: [["register", "Кассовый аппарат", [10000, 14000], true, "Орудие труда, изъятию не подлежит."], ["scales", "Весы", [5000, 7000], true, "Орудие труда, изъятию не подлежит."]],
+    pool: [["showcase", "Холодильная витрина", [30000, 40000], true, "Без неё магазина нет. Орудие труда."], ["fur", "Норковая шуба", [25000, 40000], false, "В жару висит в шкафу, ждёт зимы."], ["earrings", "Золотые серьги", [8000, 14000], false, "Хозяйка клянётся, что фамильные."], TV(8000, 18000), ["watch", "Часы", [8000, 25000], false, "Купила «на удачу», удача не пришла."]], pick: 3,
+    intro: ["Магазинчик у дома, табличка «Перерыв 5 минут» висит третий год. Открывает хозяйка.", "За прилавком женщина в халате, пересчитывает сдачу.", "Продуктовая лавка, из подсобки пахнет селёдкой. Хозяйка выходит, вытирая руки."],
+    line: ["Это поставщики виноваты! Накладные у меня есть. Кассу не берите, я без неё не торгую.", "Милок, я двадцать лет честно торгую. Вот прямо честно.", "Давайте я вам скидку на сыр сделаю, а вы про долг забудете."],
+    hint: ["Частная лавка у дома. Касса, весы и витрина рабочие и защищены.", "Хозяйка задолжала поставщику, но товар у неё всегда свежий."],
+    fs: ["Лишнее унесли. Лавка работает, ценник на сыр вырос на рубль «из принципа».", "Описали шубу и серьги. Хозяйка вздохнула и открыла кассу."], fm: ["Долг закрыли частями. Каждый четверг она оставляет вам сыр «по акции».", "Она перешла на предоплату, и поставщик успокоился."] },
+  { id: "boss_m", g: "m", dists: ["shore", "zone", "dacha"], age: [38, 58], debt: [110000, 260000], hard: 0, creds: [1, 8, 7],
+    look: { style: ["short", "bald"], extra: [["tie"], ["glasses"]] },
+    must: [PHONE],
+    pool: [["watch", "Швейцарские часы", [80000, 130000], false, "Лежат на тумбочке, как будто их забыли специально."], ["car", "Внедорожник", [90000, 150000], false, "Оформлен на тёщу, но тёща о нём не знает."], ["painting", "Картина", [60000, 120000], false, "В раме, подписана «неизвестный гений»."], ["cufflinks", "Запонки", [10000, 15000], false, "С монограммой, золото."], FRIDGE], pick: 4,
+    intro: ["Дверь открывает человек в халате с монограммой. В прихожей запах дорогого кофе.", "За дверью охрана, потом хозяин в костюме. Видно, что вы ему мешаете.", "Квартира большая, хозяин встречает с телефоном в руках."],
+    line: ["Это ошибка. Мои юристы вам позвонят.", "Давайте решим по-человечески: я вам сувенир, вы мне забудете.", "Я бизнесмен, у меня обороты. Это временные трудности."],
+    hint: ["Живёт широко, долг называет «временными трудностями». Сочувствия вызывает мало.", "Имущество оформлено на родственников, но кое-что осталось на нём."],
+    fs: ["Описали часы и картину. Он позвонил юристам и очень громко с ними разговаривал.", "Лишнее изъяли. Хозяин пообещал «найти вас» и забыл."], fm: ["Долг закрыли после долгих переговоров. Юристы потом писали вам три недели.", "Он расплатился и прислал вам визитку «на всякий случай»."] },
+  { id: "gardener_f", g: "f", dists: ["dacha", "old"], age: [50, 78], debt: [8000, 40000], hard: 2, creds: [0, 3, 4, 7],
+    look: { style: ["bun", "curly"], extra: [["scarf"], []], old: true },
+    must: [["rabbit", "Кролик Борис", [1000, 2000], true, "Домашнее животное, изъятию не подлежит."], FRIDGE],
+    pool: [["bike", "Велосипед", [4000, 9000], false, "Возит на нём рассаду на рынок."], ["jar", "Банка «Для приюта»", [2000, 3500], false, "Огурцы, но деньги для приюта тоже есть."], ["chain", "Золотая цепочка", [1500, 3000], false, "Тонкая, но золотая."], TV(3000, 7000), ["radio", "Радиоприёмник", [1500, 2500], false, "Слушает огородные советы."]], pick: 3,
+    intro: ["Калитка, за ней грядки и пёс. Из теплицы выходит женщина в панаме.", "Дача утопает в кабачках. Хозяйка выходит с лейкой.", "Открывает женщина с корзиной огурцов: «Вы за закатками?»"],
+    line: ["Я урожай продам и всё отдам. Борю не отдам, он член семьи.", "Мне уже звонили три раза. Скажите им, что я в теплице.", "Берите огурцы, они молодые, хрустят."],
+    hint: ["Торгует урожаем на рынке. Долг за газ на даче.", "Живёт одна, всё хозяйство держит сама."],
+    fs: ["Описали велосипед и цепочку. Рассаду теперь возит на тележке.", "Лишнее унесли. Борис остался, соседи присылают ему морковку."], fm: ["Долг закрыли урожаем: два мешка картошки пришлось оформить как «благодарность».", "Она рассчиталась после сезона. Борис прислал вам привет."] },
+  { id: "blogger_f", g: "f", dists: ["shore"], age: [20, 33], debt: [30000, 110000], hard: 0, creds: [2, 6, 8],
+    look: { style: ["long", "curly"], extra: [[], ["glasses"]] },
+    must: [PHONE, ["laptop", "Ноутбук", [30000, 50000], true, "Монтирует видео, рабочий инструмент. Изъятию не подлежит."]],
+    pool: [["earrings", "Золотые серьги", [7000, 14000], false, "Для кадра, надеваются один раз."], ["fur", "Шуба", [20000, 35000], false, "Искусственная, но дорогая. Фото в ней идёт хорошо."], ["sneakers", "Кроссовки", [6000, 13000], false, "Лимитированная серия, в коробке."], ["coffee", "Кофемашина", [10000, 25000], false, "Кофе пьёт только на камеру."], TV(10000, 22000), MICRO], pick: 3,
+    intro: ["Квартира с кольцевой лампой в прихожей. Открывает девушка с телефоном наготове.", "Дверь открывается, за ней свет и девушка в наушниках.", "Хозяйка встречает вас в полном макияже, как на съёмке."],
+    line: ["Подождите, это можно снять? Нет? Жаль. Я перезвоню, когда будет охват.", "У меня контракт с брендом, всё выплатится. Вот-вот.", "Только в кадр не попадайте, пожалуйста."],
+    hint: ["Ведёт блог, живёт в рассрочку. Ноутбук и телефон рабочие.", "Бренд задерживает выплаты, у неё кредиты на всё подряд."],
+    fs: ["Лишнее унесли. В блоге появился пост «Мой тяжёлый день» с хештегом #приставы.", "Описали шубу и серьги. Подписчики прислали поддержку, платить они не стали."], fm: ["Она устроилась в офис. Блог теперь называется «Жизнь с долгами», и подписчиков стало больше.", "Выплаты пошли, долг закрыт. Она пообещала снять про вас ролик, вы вежливо отказались."] }
+];
+// возвращает дело, совместимое с рукописными (CASES); used: уже выбранные в этой смене дела
+function genCase(r, dist, rank, used) {
+  const cand = ARCH.filter((a) => a.dists.includes(dist)), a = cand[Math.floor(r() * cand.length)];
+  const pickOf = (arr) => arr[Math.floor(r() * arr.length)], rnd = (lo, hi) => lo + Math.floor(r() * (hi - lo + 1));
+  const patr = (i) => a.g === "m" ? PATR_M[i] : PATR_M[i].replace(/ич$/, "на");
+  const first = a.g === "m" ? pickOf(FIRST_M) : pickOf(FIRST_F), fatherIdx = Math.floor(r() * PATR_M.length);
+  const sur = pickOf(SUR_M) + (a.g === "f" ? "а" : "");
+  let name = sur + " " + first + " " + patr(fatherIdx), tries = 0;
+  const taken = (n) => used && Object.keys(used).some((k) => used[k].name === n);
+  while (taken(name) && tries++ < 8) name = pickOf(SUR_M) + (a.g === "f" ? "а" : "") + " " + first + " " + patr(Math.floor(r() * PATR_M.length));
+  const born = 2026 - rnd(a.age[0], a.age[1]);
+  const creditor = CREDITORS[pickOf(a.creds)];
+  const debt = Math.round(rnd(a.debt[0], a.debt[1]) * (1 + rank * 0.06) / 100) * 100;
+  const mk = (it) => ({ k: it[0], n: it[1], w: Math.round(rnd(it[2][0], it[2][1]) / 100) * 100, exempt: it[3], note: it[4] });
+  const pool = shuffle(a.pool, r); let picked = pool.slice(0, a.pick);
+  if (!picked.some((it) => !it[3])) { const free = pool.find((it) => !it[3]); if (free) picked = [free].concat(picked.slice(1)); }
+  const seenK = {}, items = shuffle(a.must.concat(picked).map(mk), r).filter((it) => (seenK[it.k + it.n] ? false : (seenK[it.k + it.n] = 1)));
+  const skin = ["#e6b99a", "#e8c0a0", "#f0c8a8", "#d9a47c", "#f0c4a4"], hair = a.look.old ? ["#d8d8dc", "#b8b0a8", "#9a9aa2"] : ["#3a2a1c", "#1c1c22", "#6a4a2a", "#7a5a3a", "#2a2a30"];
+  const shirts = ["#4a5a42", "#7a5a8c", "#3f7d6a", "#8a8a92", "#a04a6a", "#4a6a8a", "#c87a2a", "#6a3a30", "#5a6a7a"];
+  const c = {
+    id: "g" + Math.floor(r() * 1e8).toString(36), name, born, debt, creditor, hardship: a.hard,
+    person: { skin: pickOf(skin), hair: pickOf(hair), style: pickOf(a.look.style), shirt: pickOf(shirts), extra: pickOf(a.look.extra), old: !!a.look.old },
+    intro: pickOf(a.intro), line: pickOf(a.line), hint: pickOf(a.hint), items,
+    fate: { s: pickOf(a.fs), m: pickOf(a.fm) }, gen: true
+  };
+  const t = r();
+  if (rank >= 1 && t < 0.13) {
+    c.trap = "name"; c.passport = { name: sur + " " + first + " " + patr((fatherIdx + 1 + Math.floor(r() * 5)) % PATR_M.length), born: born + 2 };
+    c.hint = "В банке значится другое отчество: возможно, тёзка. Сверьте отчество и год рождения.";
+  } else if (rank >= 1 && t < 0.25) {
+    c.trap = "paid"; c.receipt = "Квитанция: долг перед «" + creditor + "» оплачен полностью, платёж зачли на другой договор.";
+    c.hint = "Должник уверяет, что всё оплатил, и показывает квитанцию. Проверьте, закрывает ли она этот долг.";
+  }
+  return c;
+}
+
+// ---------- карьера: звания, опыт, деньги, снаряжение ----------
+const RANKS = [
+  { n: "Стажёр", xp: 0 }, { n: "Младший пристав", xp: 120 }, { n: "Пристав", xp: 320 }, { n: "Старший пристав", xp: 620 },
+  { n: "Ведущий пристав", xp: 1000 }, { n: "Начальник участка", xp: 1500 }, { n: "Заместитель начальника отдела", xp: 2200 }, { n: "Начальник отдела", xp: 3000 }
+];
+const RANK_DISTS = ["old", "shore", "zone", "dacha"];
+const UPGRADES = [
+  { id: "handbook", n: "Справочник пристава", cost: 2000, d: "У должника подсказывает, сколько вещей защищено законом, и намекает на подвох в бумагах." },
+  { id: "detector", n: "Ручной детектор", cost: 2500, d: "На входе в суд мигает на подозрительных посетителей. Не всегда точно, как и любой прибор." },
+  { id: "partner", n: "Напарник-стажёр", cost: 4500, d: "Если на входе всё же случится инцидент, пострадавших меньше: Безопасность падает на 1 меньше." },
+  { id: "car", n: "Служебная машина", cost: 6000, d: "Премия за каждую смену растёт на 1000 ₽: на такси вы больше не тратитесь." }
+];
+function newCareer() { return { xp: 0, money: 0, shifts: 0, up: {}, seen: [], streak: 0, protocols: 0, incidents: 0 }; }
+let CAREER = newCareer();
+function rankOf(xp) { let r = 0; for (let k = 0; k < RANKS.length; k++) if (xp >= RANKS[k].xp) r = k; return r; }
+const hasUp = (id) => !!(CAREER.up && CAREER.up[id]);
+function hashStr(s) { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; }
+// детектор: опасных ловит почти всегда, у честных иногда ложно мигает
+function detectorSays(v, seed) {
+  const h = (hashStr(v.id) + (seed >>> 0)) % 10;
+  const alarm = v.danger ? h < 8 : h < 1;
+  return alarm ? "мигает жёлтым: что-то есть." : "молчит.";
+}
+// итоги смены: опыт, деньги, повышение или понижение. Вызывается один раз за смену.
+function settleShift(S, score) {
+  const rank0 = rankOf(CAREER.xp), rv = S.review || {}, fired = S.over === "fired";
+  const bonus = rv.kind === "bonus", rep = rv.kind === "rep", inc = S.incidents || 0;
+  const xp = fired ? 0 : Math.max(0, Math.max(5, score) + (bonus ? 20 : 0) - (rep ? 15 : 0) - 10 * inc);
+  const money = fired ? 0 : 500 + score * 15 + (bonus ? 3000 : 0) + (hasUp("car") ? 1000 : 0);
+  CAREER.xp += xp; CAREER.money += money; CAREER.shifts += 1; CAREER.protocols += S.protocols || 0; CAREER.incidents += inc;
+  CAREER.streak = (fired || rep) ? CAREER.streak + 1 : 0;
+  let demoted = false;
+  if (CAREER.streak >= 3) { CAREER.streak = 0; if (rank0 > 0) { CAREER.xp = RANKS[rank0].xp - 1; demoted = true; } }
+  (S.days[0].debtors || []).forEach((id) => CAREER.seen.push(id)); CAREER.seen = CAREER.seen.slice(-18);
+  const rank1 = rankOf(CAREER.xp);
+  return { xp, money, rank0, rank1, rankUp: rank1 > rank0, demoted, newDist: rank1 > rank0 && rank1 < RANK_DISTS.length ? RANK_DISTS[rank1] : null };
+}
+
+// ---------- фоновая музыка: процедурная, WebAudio, без файлов ----------
+// Минорный «канцелярский джаз»: бас, арпеджио, редкая мелодия на пентатонике, шумовой метроном.
+// Включается после первого касания (как и звуки); в суде темп выше (mood = 1).
+const Music = {
+  on: false, mood: 0, step: 0, next: 0, timer: 0, master: null,
+  BARS: [[45, 57, 60, 64], [41, 53, 57, 60], [48, 55, 60, 64], [43, 55, 59, 62], [45, 57, 60, 64], [41, 53, 57, 60], [40, 56, 59, 64], [45, 57, 60, 64]],
+  PENT: [69, 72, 74, 76, 79, 81],
+  hz(m) { return 440 * Math.pow(2, (m - 69) / 12); },
+  start() {
+    const c = Snd.ctx; if (this.on || !settings.music || !c) return;
+    if (!this.master) { this.master = c.createGain(); this.master.gain.value = .5; this.master.connect(c.destination); }
+    this.on = true; this.next = c.currentTime + .15; this.timer = setInterval(() => this.pump(), 120);
+  },
+  stop() { this.on = false; clearInterval(this.timer); },
+  sync() { if (settings.music) this.start(); else this.stop(); },
+  eighth() { return 60 / (this.mood ? 112 : 88) / 2; },
+  note(m, t, dur, type, vol) {
+    const c = Snd.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = this.hz(m);
+    g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(vol, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + dur + .05);
+  },
+  tick(t, vol, freq) {
+    const c = Snd.ctx; if (!Snd.noiseBuf) return;
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = Snd.noiseBuf; f.type = "highpass"; f.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + .05);
+    s.connect(f).connect(g).connect(this.master); s.start(t); s.stop(t + .07);
+  },
+  pump() {
+    const c = Snd.ctx; if (!c || !this.on) return;
+    if (c.state !== "running") { this.next = c.currentTime + .1; return; }
+    if (this.next < c.currentTime) this.next = c.currentTime + .05;
+    while (this.next < c.currentTime + .4) { try { this.play(this.step++, this.next); } catch (e) {} this.next += this.eighth(); }
+  },
+  play(s, t) {
+    const bar = Math.floor(s / 8) % 8, e = s % 8, ch = this.BARS[bar], d = this.eighth(), tense = this.mood === 1;
+    if (e === 0) this.note(ch[0] - 12, t, d * 3.6, "triangle", .2);
+    else if (e === 4) this.note(ch[0] - 5, t, d * 3, "triangle", .13);
+    else if (tense && (e === 2 || e === 6)) this.note(ch[0] - 12, t, d * 1.2, "triangle", .09);
+    const arp = [1, 2, 3, 2, 1, 3, 2, 3][e];
+    if (tense || e % 2 === 0) this.note(ch[arp] + 12, t, d * 1.6, "triangle", tense ? .06 : .045);
+    const h = (bar * 7 + e * 13 + (bar > 3 ? 3 : 0)) % 11;
+    if (h < (tense ? 5 : 3)) this.note(this.PENT[(h + bar) % 6], t, d * 1.8, "sine", .075);
+    if (e % 2 === 1) this.tick(t, tense ? .05 : .03, 6000);
+    if (e === 2 || e === 6) this.tick(t, .05, 1800);
+  }
+};
+document.addEventListener("visibilitychange", () => { const c = Snd.ctx; if (!c) return; if (document.hidden) c.suspend(); else if (settings.sound || settings.music) c.resume(); });
+
 // ---------- облако: аккаунты, сохранение, рекорды (Supabase, чистый fetch) ----------
 // anon-ключ публичный по замыслу Supabase; доступ к данным закрыт политиками RLS (supabase/schema.sql).
 const Cloud = (() => {
@@ -644,11 +879,12 @@ const Cloud = (() => {
 
 "use strict";
 // ---------- сохранение и настройки ----------
-const SAVE = "pristav-save-v2", SET = "pristav-settings";
-function loadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE)); return s && s.v === 2 ? s : null; } catch (e) { return null; } }
-function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} Cloud.schedulePush(); }
-function clearSave() { try { localStorage.removeItem(SAVE); } catch (e) {} Cloud.schedulePush(); }
-let settings = { sound: true, best: 0 };
+const SAVE = "pristav-save-v3", SET = "pristav-settings";
+// сохранение: карьера (звание, деньги, снаряжение) и текущая смена, если она не закончена
+function loadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE)); return s && s.v === 3 ? s : null; } catch (e) { return null; } }
+function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify({ v: 3, career: CAREER, shift: S && !S.over ? S : null })); } catch (e) {} Cloud.schedulePush(); }
+function clearSave() { writeSave(); }
+let settings = { sound: true, music: true, best: 0 };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SET)) || {}); } catch (e) {}
 function writeSettings() { try { localStorage.setItem(SET, JSON.stringify(settings)); } catch (e) {} Cloud.schedulePush(); }
 
@@ -691,7 +927,7 @@ const Snd = {
     } catch (e) {}
   }
 };
-document.addEventListener("pointerdown", () => Snd.init(), { passive: true });
+document.addEventListener("pointerdown", () => { Snd.init(); Music.sync(); }, { passive: true });
 document.addEventListener("click", (e) => { if (e.target.closest && e.target.closest("button")) Snd.play("tap"); });
 
 // ---------- вспомогательное ----------
@@ -712,34 +948,44 @@ function legalMax(c) { if (c.trap) return 0; return Math.min(c.debt, c.items.red
 const LABELS = { cash: "Взыскано", law: "Закон", heart: "Совесть", safety: "Безопасность", complaints: "Жалобы", boss: "Начальник", bribe: "Взятка" };
 
 // ---------- расписание и состояние ----------
-function buildSchedule(seed) {
-  const r = rng(seed);
+function buildSchedule(seed, days, rank) {
+  const r = rng(seed), rk = rank || 0;
   const dang = shuffle(VISITORS.filter((v) => v.danger).map((v) => v.id), r), safe = shuffle(VISITORS.filter((v) => !v.danger).map((v) => v.id), r);
   // дни не повторяют друг друга: разный порядок дел, размер смены на входе и «причуда» дня
   const pick = (a) => a[Math.floor(r() * a.length)];
-  const nd = [pick([1, 2]), pick([1, 2]), pick([2, 3]), pick([2, 2])], ns = [pick([1, 2]), pick([2, 3]), pick([2, 2]), pick([2, 3])];
-  const twists = ["normal"].concat(shuffle(["broken", "trial", "normal"], r));
+  const nd = [rk < 2 ? pick([1, 2]) : pick([2, 3])], ns = [rk < 1 ? pick([1, 2]) : pick([2, 3])];
+  const twists = [rk < 1 ? "normal" : pick(["normal", "normal", "broken", "trial"])];
   const col = shuffle(EVENTS.filter((e) => e.src === "colleague").map((e) => e.id), r), nei = shuffle(EVENTS.filter((e) => e.src === "neighbor").map((e) => e.id), r);
   const TM = ["08:50", "09:30", "11:00", "11:20", "12:30", "13:00", "15:30"];
-  return DAYS.map((d, i) => {
+  return days.map((d, i) => {
     const tw = twists[i], debts = shuffle(d.debtors, r);
     const court = shuffle(dang.splice(0, nd[i] + (tw === "trial" ? 1 : 0)).concat(safe.splice(0, ns[i])), r);
     const mid = shuffle([{ t: "debt", id: debts[0] }, { t: "debt", id: debts[1] }, { t: "debt", id: debts[2] }, { t: "event", id: nei[i] }, { t: "event", id: col[i] }, { t: "court", ids: court, twist: tw }], r);
-    return [{ t: "event", id: "b" + (i + 1) }].concat(mid).map((s, k) => Object.assign(s, { time: TM[k] }));
+    return [{ t: "event", id: "b" + (1 + Math.floor(r() * 4)) }].concat(mid).map((s, k) => Object.assign(s, { time: TM[k] }));
   });
 }
-function planFor(sched) {
+function planFor(sched, days) {
   return sched.map((steps, i) => {
     const sum = steps.filter((s) => s.t === "debt").reduce((a, s) => a + legalMax(CASE[s.id]), 0);
-    return Math.max(1000, Math.round(sum * DAYS[i].factor / 1000) * 1000);
+    return Math.max(1000, Math.round(sum * days[i].factor / 1000) * 1000);
   });
 }
 let S = null;
 function fresh() {
-  const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0, sched = buildSchedule(seed);
-  return { v: 2, seed, day: 0, step: 0, phase: "morning", picks: [], vis: 0, tone: null, toneText: "", note: "", result: null, tainted: false,
+  const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0, rank = rankOf(CAREER.xp), r = rng(seed ^ 0x5bd1e995);
+  // смена: район по званию, одно рукописное дело (если есть непоказанное) и сгенерированные
+  const dists = RANK_DISTS.slice(0, Math.min(RANK_DISTS.length, rank + 1)), dist = dists[Math.floor(r() * dists.length)];
+  const hand = DAYS.filter((d) => d.dist === dist).reduce((a, d) => a.concat(d.debtors), []).filter((id) => !CAREER.seen.includes(id));
+  const gen = {}, ids = [];
+  for (let i = 0; i < 3; i++) {
+    if (i === 0 && hand.length && r() < 0.6) { ids.push(hand[Math.floor(r() * hand.length)]); continue; }
+    const c = genCase(r, dist, rank, gen); gen[c.id] = c; CASE[c.id] = c; ids.push(c.id);
+  }
+  const days = [{ name: "СМЕНА № " + (CAREER.shifts + 1), dist, debtors: ids, factor: Math.min(0.8, 0.5 + 0.04 * rank) }];
+  const sched = buildSchedule(seed, days, rank);
+  return { v: 3, days, gen, seed, day: 0, step: 0, phase: "morning", picks: [], vis: 0, tone: null, toneText: "", note: "", result: null, tainted: false,
     stats: { cash: 0, law: 0, heart: 0, safety: 0, complaints: 0 }, boss: 0, bribe: 0, salary: 0, reprimands: 0,
-    sched, plans: planFor(sched), dayStart: { cash: 0, law: 0, complaints: 0, inc: 0 }, review: null, epi: [], log: [], over: null, incidents: 0, protocols: 0, q: {} };
+    sched, plans: planFor(sched, days), dayStart: { cash: 0, law: 0, complaints: 0, inc: 0 }, review: null, epi: [], log: [], over: null, incidents: 0, protocols: 0, q: {} };
 }
 function stat(k, d) { if (k in S.stats) S.stats[k] += d; else S[k] = (S[k] || 0) + d; }
 function applyFx(fx) {
@@ -872,12 +1118,12 @@ function sceneStair() {
   if (sc.dog) dog(28, 36); else if (sc.p) person(sc.p, 40, 18, sc);
 }
 function render() {
-  T++; const k = sc.kind;
+  T++; const k = sc.kind; Music.mood = k === "court" ? 1 : 0;
   if (k === "door") sceneDoor(); else if (k === "room") sceneRoom(); else if (k === "court") sceneCourt();
   else if (k === "desk") sceneDesk(); else if (k === "call") sceneCall(); else if (k === "stair") sceneStair(); else if (k === "logo") sceneLogo(); else sceneStreet();
 }
 // сцена пересоздаётся только при смене ключа
-function scn(kind, key, o) { if (sc.kind === kind && sc.key === key) { if (o && o.mood) sc.mood = o.mood; return sc; } sc = Object.assign({ kind, key, open: 0, target: 0.3, delay: 8, mood: "calm", dist: DAYS[S ? S.day : 0].dist }, o || {}); return sc; }
+function scn(kind, key, o) { if (sc.kind === kind && sc.key === key) { if (o && o.mood) sc.mood = o.mood; return sc; } sc = Object.assign({ kind, key, open: 0, target: 0.3, delay: 8, mood: "calm", dist: S && S.days ? S.days[S.day].dist : "old" }, o || {}); return sc; }
 
 // ---------- интерфейс ----------
 function hud() {
@@ -887,7 +1133,7 @@ function hud() {
 }
 function where() {
   const st = S.sched[S.day][S.step];
-  $("#whereL").textContent = `День ${S.day + 1}/4 · ${DISTRICTS[DAYS[S.day].dist].name}`;
+  $("#whereL").textContent = `Смена ${CAREER.shifts + 1} · ${DISTRICTS[S.days[S.day].dist].name}`;
   $("#whereR").textContent = S.phase === "morning" ? "Утро" : st ? st.time : "Вечер";
 }
 function setActions(list) {
@@ -913,23 +1159,36 @@ function menu() {
   if (!Cloud.user) return landing();
   S = null; sc = { kind: "street", key: "menu", dist: "old" };
   $("#hud").innerHTML = ""; $("#whereL").textContent = "Заречинск"; $("#whereR").textContent = "ОПВ № 7";
+  const rk = rankOf(CAREER.xp), cur = RANKS[rk], nx = RANKS[rk + 1], pct = nx ? Math.floor((CAREER.xp - cur.xp) / (nx.xp - cur.xp) * 100) : 100;
   panel(`<h2>ПРИСТАВ: СМЕНА</h2>
-    <p>Неделя пристава в Заречинске: четыре района, двенадцать должников, суд и начальник, который звонит вовремя.</p>
-    <p class="who">Все персонажи и организации вымышлены. 16+: чёрный юмор, без жестокости.${settings.best ? " Рекорд: " + settings.best + " из 100." : ""}</p>`);
-  const saved = loadSave(), list = [], can = saved && !saved.over && saved.day < DAYS.length;
-  $("#panel").insertAdjacentHTML("beforeend", `<p class="who acc">Профиль: <b>${esc(Cloud.user)}</b> · сохранение в облаке</p>`);
-  if (can) list.push({ label: "Продолжить: день " + (saved.day + 1), cls: "primary", fn: () => { S = saved; enteredKey = ""; run(); } });
-  list.push({ label: can ? "Новая неделя" : "Начать неделю", cls: can ? "" : "primary", fn: () => { S = fresh(); enteredKey = ""; run(); } });
+    <p><b>${esc(cur.n)}</b> · ${esc(Cloud.user)}</p>
+    <div class="bars"><div class="bar"><span>Опыт</span><b>${CAREER.xp}</b><i><span style="width:${pct}%"></span></i></div></div>
+    <p class="who">${nx ? "До звания «" + esc(nx.n) + "»: " + (nx.xp - CAREER.xp) + " оп." : "Высшее звание."} Смен: ${CAREER.shifts} · Деньги: ${esc(fmt(CAREER.money))} · Лучший результат: ${settings.best || 0} из 100.</p>
+    <p class="who">Смена занимает 5–10 минут. Район и дела каждый раз новые, с ростом звания открываются новые районы.</p>`);
+  const sv = loadSave(), cont = sv && sv.shift && !sv.shift.over, list = [];
+  if (cont) list.push({ label: "Продолжить смену", cls: "primary", fn: () => { S = sv.shift; Object.assign(CASE, S.gen || {}); enteredKey = ""; run(); } });
+  list.push({ label: cont ? "Начать новую смену" : "Начать смену", cls: cont ? "" : "primary", fn: startShift });
+  list.push({ label: "Склад и снаряжение", fn: shop });
   list.push({ label: "Таблица рекордов", fn: board });
   list.push({ label: "Как играть", fn: howTo });
   list.push({ label: "Звук: " + (settings.sound ? "включён" : "выключен"), fn: () => { settings.sound = !settings.sound; writeSettings(); menu(); } });
+  list.push({ label: "Музыка: " + (settings.music ? "включена" : "выключена"), fn: () => { settings.music = !settings.music; writeSettings(); Music.sync(); menu(); } });
   list.push({ label: "Выйти из профиля", fn: logout });
+  setActions(list);
+}
+function startShift() { S = fresh(); enteredKey = ""; run(); }
+function shop() {
+  sc = { kind: "street", key: "shop", dist: "old" };
+  panel(`<h2>СКЛАД</h2><p class="who">Деньги: ${esc(fmt(CAREER.money))}. Снаряжение действует во всех сменах.</p>` +
+    UPGRADES.map((u) => `<div class="note"><b>${esc(u.n)}</b>${hasUp(u.id) ? " (куплено)" : " · " + esc(fmt(u.cost))}<br>${esc(u.d)}</div>`).join(""));
+  const list = UPGRADES.filter((u) => !hasUp(u.id)).map((u) => ({ label: "Купить: " + u.n + " — " + fmt(u.cost), disabled: CAREER.money < u.cost, fn: () => { CAREER.money -= u.cost; CAREER.up[u.id] = 1; writeSave(); Snd.play("coin"); shop(); } }));
+  list.push({ label: "Назад", cls: "primary", fn: menu });
   setActions(list);
 }
 function logout() {
   Cloud.signOut();
   try { localStorage.removeItem(SAVE); localStorage.removeItem(SET); } catch (e) {}
-  settings.sound = true; settings.best = 0; $("#snd").textContent = "♪";
+  settings.sound = true; settings.music = true; settings.best = 0; CAREER = newCareer(); Music.stop(); $("#snd").textContent = "♪";
   menu();
 }
 // облако -> устройство после входа: сохранение из облака главнее, пустое облако получает то, что уже есть на устройстве
@@ -937,7 +1196,7 @@ async function syncAfterLogin() {
   try {
     const row = await Cloud.pull();
     if (row) {
-      if (row.data && row.data.v === 2) localStorage.setItem(SAVE, JSON.stringify(row.data));
+      if (row.data && row.data.v === 3) { localStorage.setItem(SAVE, JSON.stringify(row.data)); CAREER = Object.assign(newCareer(), row.data.career || {}); }
       const cs = row.settings || {};
       if (typeof cs.sound === "boolean") settings.sound = cs.sound;
       settings.best = Math.max(settings.best || 0, cs.best || 0);
@@ -979,11 +1238,10 @@ function board() {
 function howTo() {
   sc = { kind: "street", key: "how", dist: "old" };
   panel(`<h2>КАК ИГРАТЬ</h2>
-    <p>Четыре дня, три должника в день. У каждого три шага: поговорить у двери, сверить документы, описать имущество.</p>
-    <p>Нельзя изымать защищённое законом (жильё, бытовое, лекарства, детское, орудия труда) и чужое. Следите за документами: бывает тёзка, бывает уже оплаченный долг.</p>
-    <p>На входе в суд спросите о цели визита и о запрещённом, посмотрите сумку. Рамка молчит не всегда честно: при подозрении проводите личный обыск. Найденное оформляйте протоколом. Пропустите опасного человека, и пострадают судья, заседатели, участники процесса или граждане.</p>
-    <p>Между делами звонят, просят и подсказывают. Решения копятся и влияют на конец недели.</p>
-    <p class="who">Каждое утро итоги: премия, замечание или выговор. Три выговора или лавина жалоб: увольнение.</p>`);
+    <p>Одна смена: три должника, дежурство на входе в суд, звонок начальника и пара событий. Минут на пять-десять. За смену вы получаете опыт, премию и звание.</p>
+    <p>У должника три шага: поговорить, сверить документы, описать имущество. Нельзя изымать защищённое законом (жильё, лекарства, детское, орудия труда) и чужое. Бывает тёзка и уже оплаченный долг.</p>
+    <p>На входе в суд спросите о цели визита и о запрещённом, посмотрите сумку и коробки. Рамка молчит не всегда честно: при подозрении проводите личный обыск. Найденное оформляйте протоколом. Пропустите опасного человека, и пострадают судья, заседатели, участники процесса или граждане.</p>
+    <p class="who">Деньги тратьте на складе: справочник, детектор, напарник, машина. Три провальные смены подряд ведут к понижению.</p>`);
   setActions([{ label: "Назад", cls: "primary", fn: menu }]);
 }
 
@@ -1006,7 +1264,7 @@ function onEnter(st) {
 function next() { S.step += 1; S.phase = "start"; S.picks = []; S.vis = 0; S.q = {}; S.note = ""; S.result = null; S.tainted = false; run(); }
 
 function morning() {
-  const d = DAYS[S.day], D = DISTRICTS[d.dist]; scn("street", "m" + S.day, { dist: d.dist });
+  const d = S.days[S.day], D = DISTRICTS[d.dist]; scn("street", "m" + S.day, { dist: d.dist });
   let html = `<h2>${d.name}</h2>`;
   if (S.review) {
     const r = S.review, rn = { bonus: ["ПРЕМИЯ 3 000 ₽", "ok", "Начальник кисло улыбнулся и подписал бумагу."], rep: ["ВЫГОВОР", "bad", "Лыков зачитал приказ, не поднимая глаз."], note: ["ЗАМЕЧАНИЕ УСТНОЕ", "ok", "«Работайте». Ни хвалы, ни наказания."] }[r.kind];
@@ -1016,7 +1274,7 @@ function morning() {
   if (tw) html += `<div class="note">${esc(tw)}</div>`;
   html += `<p class="who">Район: ${esc(D.name)}. ${esc(D.blurb)}</p><p>План на день: <b>${esc(fmt(S.plans[S.day]))}</b>. Три адреса, дежурство в суде и телефон, который не замолкает.</p>`;
   panel(html);
-  setActions([{ label: S.day ? "На смену" : "Выйти на смену", cls: "primary", fn: () => { S.phase = "start"; S.step = 0; S.dayStart = { cash: S.stats.cash, law: S.stats.law, complaints: S.stats.complaints, inc: S.incidents || 0 }; run(); } }]);
+  setActions([{ label: "Выйти на смену", cls: "primary", fn: () => { S.phase = "start"; S.step = 0; S.dayStart = { cash: S.stats.cash, law: S.stats.law, complaints: S.stats.complaints, inc: S.incidents || 0 }; run(); } }]);
 }
 function dayDone() {
   const d = S.day, a = S.stats, ds = S.dayStart, gained = a.cash - ds.cash, comp = a.complaints - ds.complaints, law = a.law - ds.law, plan = S.plans[d];
@@ -1025,15 +1283,13 @@ function dayDone() {
   if (gained >= plan && comp <= 1 && law >= -1 && !inc) kind = "bonus"; else if (gained < plan * 0.4 || comp >= 4 || law <= -4 || inc >= 2) kind = "rep";
   if (kind === "bonus") { S.salary += 3000; stat("boss", 1); Snd.play("good"); } else if (kind === "rep") { S.reprimands += 1; stat("boss", -1); Snd.play("bad"); }
   S.review = { day: d, gained, plan, comp, law, kind, inc };
-  if (S.reprimands >= 3 || a.complaints >= 14 || a.law <= -12 || (S.incidents || 0) >= 4) S.over = "fired";
-  else if (d + 1 >= DAYS.length) S.over = "end";
-  else { S.day += 1; S.step = 0; S.phase = "morning"; }
+  S.over = (a.complaints >= 8 || a.law <= -8 || (S.incidents || 0) >= 3) ? "fired" : "end";
   enteredKey = ""; run();
 }
 
 // ----- должник -----
 function debtScreen(c) {
-  const sk = "d" + c.id; const doorScene = () => scn("door", sk, { p: c.person, chain: true, dist: DAYS[S.day].dist });
+  const sk = "d" + c.id; const doorScene = () => scn("door", sk, { p: c.person, chain: true, dist: S.days[S.day].dist });
   if (S.phase === "start") {
     doorScene();
     panel(`<h2>${esc(c.name)}</h2><p class="who">Долг: ${esc(fmt(c.debt))} · Взыскатель: ${esc(c.creditor)}</p><p>${esc(c.intro)}</p><q>${esc(c.line)}</q>`);
@@ -1043,7 +1299,7 @@ function debtScreen(c) {
       { label: "Надавить: «Откройте или взломаем»", cls: "danger", fn: () => tone(c, "hard") }
     ]);
   } else if (S.phase === "talk") {
-    doorScene(); panel(`<h2>${esc(c.name)}</h2><p>${esc(S.toneText)}</p><div class="note">Заметка: ${esc(c.hint)}</div>`);
+    doorScene(); panel(`<h2>${esc(c.name)}</h2><p>${esc(S.toneText)}</p><div class="note">Заметка: ${esc(c.hint)}</div>${hasUp("handbook") ? `<div class="note">Справочник: защищено законом вещей: ${c.items.filter((i) => i.exempt || i.foreign).length}.${c.trap ? " В бумагах что-то не так." : ""}</div>` : ""}`);
     setActions([{ label: "К документам", cls: "primary", fn: () => { S.phase = "docs"; run(); } }]);
   } else if (S.phase === "docs") { doorScene(); sc.target = 1; docs(c); }
   else if (S.phase === "inspect") inspect(c);
@@ -1070,17 +1326,17 @@ function docs(c) {
       else if (c.trap === "paid") { stat("law", -1); S.tainted = true; S.note = "Вы не заметили чек: долг уже погашен. Любое изъятие теперь будет незаконным."; }
       S.phase = "inspect"; run(); } },
     { label: "Это не тот человек", cls: "danger", fn: () => {
-      if (c.trap === "name") { stat("law", 2); stat("heart", 1); S.log.push({ id: c.id, out: "m" }); S.result = { title: "ТЁЗКА НАЙДЕН", text: "Вы вернули дело в банк: это другой Лебедев. Должник пожал вам руку и впервые за неделю улыбнулся.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; sc.mood = "happy"; Snd.play("good"); }
+      if (c.trap === "name") { stat("law", 2); stat("heart", 1); S.log.push({ id: c.id, out: "m" }); S.result = { title: "ТЁЗКА НАЙДЕН", text: "Вы вернули дело: это другой человек, тёзка. Должник пожал вам руку и впервые за долгое время улыбнулся.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; sc.mood = "happy"; Snd.play("good"); }
       else { stat("complaints", 1); stat("law", -1); S.note = "Вы зря заподозрили подлог, потеряли время и получили выговор." + (c.trap === "paid" ? " Долг, между прочим, погашен." : ""); if (c.trap === "paid") S.tainted = true; S.phase = "inspect"; Snd.play("bad"); }
       run(); } },
     { label: "Долг уже оплачен", fn: () => {
-      if (c.trap === "paid") { stat("law", 2); stat("heart", 1); S.log.push({ id: c.id, out: "m" }); S.result = { title: "ДОЛГ ПОГАШЕН", text: "Чек настоящий: МФО зачло платёж на другой договор. Вы вернули дело на пересмотр. Должник перекрестился и угостил вас чаем.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; sc.mood = "happy"; Snd.play("good"); }
+      if (c.trap === "paid") { stat("law", 2); stat("heart", 1); S.log.push({ id: c.id, out: "m" }); S.result = { title: "ДОЛГ ПОГАШЕН", text: "Чек настоящий: взыскатель зачёл платёж на другой договор. Вы вернули дело на пересмотр. Должник перекрестился и угостил вас чаем.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; sc.mood = "happy"; Snd.play("good"); }
       else { stat("complaints", 1); stat("law", -1); S.note = "Бумага не закрывает долг: сумма или период не те. Взыскатель недоволен."; if (c.trap === "name") S.tainted = true; S.phase = "inspect"; Snd.play("bad"); }
       run(); } }
   ]);
 }
 function inspect(c) {
-  scn("room", "r" + c.id, { dist: DAYS[S.day].dist });
+  scn("room", "r" + c.id, { dist: S.days[S.day].dist });
   panel(`<h2>ОПИСЬ ИМУЩЕСТВА</h2>${S.note ? `<div class="note">${esc(S.note)}</div>` : ""}
     <p>Долг: ${esc(fmt(c.debt))}. Выберите вещи для изъятия, нажатие показывает комментарий.</p>
     <div class="grid" id="grid"></div><div class="note" id="note">Нажмите на вещь, чтобы осмотреть её.</div><p id="sum"></p>`);
@@ -1147,7 +1403,7 @@ function resultScreen() {
 
 // ----- события -----
 function eventScreen(e, st) {
-  const dist = DAYS[S.day].dist, kind = e.src === "boss" ? "call" : "stair";
+  const dist = S.days[S.day].dist, kind = e.src === "boss" ? "call" : "stair";
   const o = { p: e.look, dist, dog: !!e.dog, ringing: e.src === "boss" && S.phase === "start" };
   const s = scn(kind, "e" + e.id, o); if (S.phase === "evres") s.ringing = false;
   if (S.phase === "evres") {
@@ -1171,6 +1427,7 @@ function courtScreen(st) {
   if (S.phase === "start") {
     s.beeping = v.beep && !broken; if (s.beeping && !q.beeped) { q.beeped = true; setTimeout(() => Snd.play("beep"), 200); }
     let html = `<h2>${esc(v.name)}</h2><p>${esc(v.intro)}</p><p class="who">Рамка: ${broken ? "сегодня сломана, ей нельзя верить." : v.beep ? "ПИЩИТ." : "молчит."}</p>`;
+    if (hasUp("detector")) html += `<p class="who">Детектор: ${detectorSays(v, S.seed)}</p>`;
     if (S.vis === 0 && st.twist === "trial") html += `<p class="who">Сегодня громкое дело: народу больше обычного.</p>`;
     if (q.purpose) html += `<p class="who">Цель визита?</p><q>${esc(v.say)}</q>`;
     if (q.ask) html += `<p class="who">Есть запрещённые предметы?</p><q>${esc(askAnswer(v))}</q>`;
@@ -1216,7 +1473,7 @@ function incident(v, lead) {
   S.incidents = (S.incidents || 0) + 1;
   let h = 0; for (const ch of v.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const harm = HARM[(h + (S.seed >>> 0) + S.day) % HARM.length];
-  return { fx: { safety: -2, law: -1, complaints: 1 }, title: "ИНЦИДЕНТ", text: lead + " " + harm.text + " " + (v.inc || "Охрана смотрит на вас молча.") };
+  return { fx: { safety: hasUp("partner") ? -1 : -2, law: -1, complaints: 1 }, title: "ИНЦИДЕНТ", text: lead + " " + harm.text + " " + (v.inc || "Охрана смотрит на вас молча.") };
 }
 function cOut(v, kind) {
   let fx = {}, text = "", title = "РЕЗУЛЬТАТ";
@@ -1250,7 +1507,7 @@ function cOut(v, kind) {
   const tags = applyFx(fx); S.result = { title, text, tags }; S.phase = "cres"; sfxFor(tags, 0); run();
 }
 
-// ----- финал -----
+// ----- финал смены -----
 function endScreen() {
   scn("desk", "end", {}); const a = S.stats, planAll = S.plans.reduce((x, y) => x + y, 0);
   const cash = Math.min(100, Math.round(a.cash / planAll * 100)), law = Math.max(0, Math.min(100, 50 + a.law * 4)), heart = Math.max(0, Math.min(100, 50 + a.heart * 5)), safe = Math.max(0, Math.min(100, 50 + a.safety * 12));
@@ -1260,22 +1517,26 @@ function endScreen() {
   else if (cash >= 80 && law >= 60 && heart >= 55) end = "model"; else if (cash >= 80 && heart < 40) end = "iron";
   else if (heart >= 65 && cash < 60) end = "human"; else if (cash < 35) end = "weak";
   const [title, text] = ENDINGS[end];
+  if (!S.reward) {
+    S.reward = settleShift(S, score); S.score = score;
+    if (score > (settings.best || 0)) { settings.best = score; writeSettings(); }
+    Cloud.submitScore(score, S.day, end).catch(() => {}); writeSave();
+  }
+  const rw = S.reward, rv = S.review || {}, rn = { bonus: "Премия 3 000 ₽", rep: "Выговор", note: "Замечание устное" }[rv.kind] || "";
   const bar = (n, v) => `<div class="bar ${v < 40 ? "low" : ""}"><span>${esc(n)}</span><b>${v}%</b><i><span style="width:${v}%"></span></i></div>`;
   const fates = S.log.map((l) => { const c = CASE[l.id]; return `<li><b>${esc(c.name.split(" ").slice(0, 2).join(" "))}.</b> ${esc(l.out === "m" ? c.fate.m : c.fate.s)}</li>`; }).join("");
-  if (score > (settings.best || 0)) { settings.best = score; writeSettings(); }
-  Cloud.submitScore(score, S.day, end).catch(() => {});
   panel(`<h2>${esc(title)}</h2><p>${esc(text)}</p>
-    <div class="bars">${bar("План недели: " + fmt(a.cash) + " из " + fmt(planAll), cash)}${bar("Законность", law)}${bar("Совесть", heart)}${bar("Безопасность суда", safe)}</div>
-    <p class="who">Оценка: ${score} из 100 · Жалоб: ${a.complaints} · Премий: ${fmt(S.salary)} · Выговоров: ${S.reprimands} · Протоколов: ${S.protocols || 0} · Инцидентов на входе: ${S.incidents || 0}</p>
-    ${S.epi.length ? `<div class="note"><b>Ваши решения.</b><ul>${S.epi.slice(0, 8).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    <div class="bars">${bar("План смены: " + fmt(a.cash) + " из " + fmt(planAll), cash)}${bar("Законность", law)}${bar("Совесть", heart)}${bar("Безопасность суда", safe)}</div>
+    <div class="note"><b>Итоги смены.</b> Оценка ${score} из 100${rn ? " · " + esc(rn) : ""}<br>Опыт: +${rw.xp} · Деньги: +${esc(fmt(rw.money))}<br>Звание: <b>${esc(RANKS[rw.rank1].n)}</b>${rw.rankUp ? " (повышение!)" : ""}${rw.demoted ? " (понижение за три провала подряд)" : ""}${rw.newDist ? "<br>Открыт новый район: " + esc(DISTRICTS[rw.newDist].name) : ""}</div>
+    <p class="who">Жалоб: ${a.complaints} · Протоколов: ${S.protocols || 0} · Инцидентов на входе: ${S.incidents || 0}</p>
     ${fates ? `<div class="note"><b>Что стало с людьми.</b><ul>${fates}</ul></div>` : ""}`);
-  Snd.play(end === "model" || end === "avg" ? "good" : "bad");
-  setActions([{ label: "Сыграть ещё раз", cls: "primary", fn: () => { clearSave(); S = fresh(); enteredKey = ""; run(); } }, { label: "В меню", fn: () => { clearSave(); menu(); } }]);
-  clearSave();
+  Snd.play(end === "model" || end === "avg" || end === "human" ? "good" : "bad");
+  setActions([{ label: "Новая смена", cls: "primary", fn: startShift }, { label: "Склад и снаряжение", fn: shop }, { label: "В меню", fn: menu }]);
 }
 
-$("#snd").addEventListener("click", () => { settings.sound = !settings.sound; writeSettings(); $("#snd").textContent = settings.sound ? "♪" : "×"; if (!S) menu(); });
-$("#snd").textContent = settings.sound ? "♪" : "×";
+$("#snd").addEventListener("click", () => { const on = !(settings.sound || settings.music); settings.sound = on; settings.music = on; writeSettings(); Music.sync(); $("#snd").textContent = on ? "♪" : "×"; if (!S) menu(); });
+$("#snd").textContent = settings.sound || settings.music ? "♪" : "×";
+{ const sv = loadSave(); if (sv && sv.career) CAREER = Object.assign(newCareer(), sv.career); }
 setInterval(render, 83);
 menu();
 </script>

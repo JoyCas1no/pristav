@@ -1,10 +1,11 @@
 "use strict";
 // ---------- сохранение и настройки ----------
-const SAVE = "pristav-save-v2", SET = "pristav-settings";
-function loadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE)); return s && s.v === 2 ? s : null; } catch (e) { return null; } }
-function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} Cloud.schedulePush(); }
-function clearSave() { try { localStorage.removeItem(SAVE); } catch (e) {} Cloud.schedulePush(); }
-let settings = { sound: true, best: 0 };
+const SAVE = "pristav-save-v3", SET = "pristav-settings";
+// сохранение: карьера (звание, деньги, снаряжение) и текущая смена, если она не закончена
+function loadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE)); return s && s.v === 3 ? s : null; } catch (e) { return null; } }
+function writeSave() { try { localStorage.setItem(SAVE, JSON.stringify({ v: 3, career: CAREER, shift: S && !S.over ? S : null })); } catch (e) {} Cloud.schedulePush(); }
+function clearSave() { writeSave(); }
+let settings = { sound: true, music: true, best: 0 };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SET)) || {}); } catch (e) {}
 function writeSettings() { try { localStorage.setItem(SET, JSON.stringify(settings)); } catch (e) {} Cloud.schedulePush(); }
 
@@ -47,7 +48,7 @@ const Snd = {
     } catch (e) {}
   }
 };
-document.addEventListener("pointerdown", () => Snd.init(), { passive: true });
+document.addEventListener("pointerdown", () => { Snd.init(); Music.sync(); }, { passive: true });
 document.addEventListener("click", (e) => { if (e.target.closest && e.target.closest("button")) Snd.play("tap"); });
 
 // ---------- вспомогательное ----------
@@ -68,34 +69,44 @@ function legalMax(c) { if (c.trap) return 0; return Math.min(c.debt, c.items.red
 const LABELS = { cash: "Взыскано", law: "Закон", heart: "Совесть", safety: "Безопасность", complaints: "Жалобы", boss: "Начальник", bribe: "Взятка" };
 
 // ---------- расписание и состояние ----------
-function buildSchedule(seed) {
-  const r = rng(seed);
+function buildSchedule(seed, days, rank) {
+  const r = rng(seed), rk = rank || 0;
   const dang = shuffle(VISITORS.filter((v) => v.danger).map((v) => v.id), r), safe = shuffle(VISITORS.filter((v) => !v.danger).map((v) => v.id), r);
   // дни не повторяют друг друга: разный порядок дел, размер смены на входе и «причуда» дня
   const pick = (a) => a[Math.floor(r() * a.length)];
-  const nd = [pick([1, 2]), pick([1, 2]), pick([2, 3]), pick([2, 2])], ns = [pick([1, 2]), pick([2, 3]), pick([2, 2]), pick([2, 3])];
-  const twists = ["normal"].concat(shuffle(["broken", "trial", "normal"], r));
+  const nd = [rk < 2 ? pick([1, 2]) : pick([2, 3])], ns = [rk < 1 ? pick([1, 2]) : pick([2, 3])];
+  const twists = [rk < 1 ? "normal" : pick(["normal", "normal", "broken", "trial"])];
   const col = shuffle(EVENTS.filter((e) => e.src === "colleague").map((e) => e.id), r), nei = shuffle(EVENTS.filter((e) => e.src === "neighbor").map((e) => e.id), r);
   const TM = ["08:50", "09:30", "11:00", "11:20", "12:30", "13:00", "15:30"];
-  return DAYS.map((d, i) => {
+  return days.map((d, i) => {
     const tw = twists[i], debts = shuffle(d.debtors, r);
     const court = shuffle(dang.splice(0, nd[i] + (tw === "trial" ? 1 : 0)).concat(safe.splice(0, ns[i])), r);
     const mid = shuffle([{ t: "debt", id: debts[0] }, { t: "debt", id: debts[1] }, { t: "debt", id: debts[2] }, { t: "event", id: nei[i] }, { t: "event", id: col[i] }, { t: "court", ids: court, twist: tw }], r);
-    return [{ t: "event", id: "b" + (i + 1) }].concat(mid).map((s, k) => Object.assign(s, { time: TM[k] }));
+    return [{ t: "event", id: "b" + (1 + Math.floor(r() * 4)) }].concat(mid).map((s, k) => Object.assign(s, { time: TM[k] }));
   });
 }
-function planFor(sched) {
+function planFor(sched, days) {
   return sched.map((steps, i) => {
     const sum = steps.filter((s) => s.t === "debt").reduce((a, s) => a + legalMax(CASE[s.id]), 0);
-    return Math.max(1000, Math.round(sum * DAYS[i].factor / 1000) * 1000);
+    return Math.max(1000, Math.round(sum * days[i].factor / 1000) * 1000);
   });
 }
 let S = null;
 function fresh() {
-  const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0, sched = buildSchedule(seed);
-  return { v: 2, seed, day: 0, step: 0, phase: "morning", picks: [], vis: 0, tone: null, toneText: "", note: "", result: null, tainted: false,
+  const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0, rank = rankOf(CAREER.xp), r = rng(seed ^ 0x5bd1e995);
+  // смена: район по званию, одно рукописное дело (если есть непоказанное) и сгенерированные
+  const dists = RANK_DISTS.slice(0, Math.min(RANK_DISTS.length, rank + 1)), dist = dists[Math.floor(r() * dists.length)];
+  const hand = DAYS.filter((d) => d.dist === dist).reduce((a, d) => a.concat(d.debtors), []).filter((id) => !CAREER.seen.includes(id));
+  const gen = {}, ids = [];
+  for (let i = 0; i < 3; i++) {
+    if (i === 0 && hand.length && r() < 0.6) { ids.push(hand[Math.floor(r() * hand.length)]); continue; }
+    const c = genCase(r, dist, rank, gen); gen[c.id] = c; CASE[c.id] = c; ids.push(c.id);
+  }
+  const days = [{ name: "СМЕНА № " + (CAREER.shifts + 1), dist, debtors: ids, factor: Math.min(0.8, 0.5 + 0.04 * rank) }];
+  const sched = buildSchedule(seed, days, rank);
+  return { v: 3, days, gen, seed, day: 0, step: 0, phase: "morning", picks: [], vis: 0, tone: null, toneText: "", note: "", result: null, tainted: false,
     stats: { cash: 0, law: 0, heart: 0, safety: 0, complaints: 0 }, boss: 0, bribe: 0, salary: 0, reprimands: 0,
-    sched, plans: planFor(sched), dayStart: { cash: 0, law: 0, complaints: 0, inc: 0 }, review: null, epi: [], log: [], over: null, incidents: 0, protocols: 0, q: {} };
+    sched, plans: planFor(sched, days), dayStart: { cash: 0, law: 0, complaints: 0, inc: 0 }, review: null, epi: [], log: [], over: null, incidents: 0, protocols: 0, q: {} };
 }
 function stat(k, d) { if (k in S.stats) S.stats[k] += d; else S[k] = (S[k] || 0) + d; }
 function applyFx(fx) {
@@ -228,12 +239,12 @@ function sceneStair() {
   if (sc.dog) dog(28, 36); else if (sc.p) person(sc.p, 40, 18, sc);
 }
 function render() {
-  T++; const k = sc.kind;
+  T++; const k = sc.kind; Music.mood = k === "court" ? 1 : 0;
   if (k === "door") sceneDoor(); else if (k === "room") sceneRoom(); else if (k === "court") sceneCourt();
   else if (k === "desk") sceneDesk(); else if (k === "call") sceneCall(); else if (k === "stair") sceneStair(); else if (k === "logo") sceneLogo(); else sceneStreet();
 }
 // сцена пересоздаётся только при смене ключа
-function scn(kind, key, o) { if (sc.kind === kind && sc.key === key) { if (o && o.mood) sc.mood = o.mood; return sc; } sc = Object.assign({ kind, key, open: 0, target: 0.3, delay: 8, mood: "calm", dist: DAYS[S ? S.day : 0].dist }, o || {}); return sc; }
+function scn(kind, key, o) { if (sc.kind === kind && sc.key === key) { if (o && o.mood) sc.mood = o.mood; return sc; } sc = Object.assign({ kind, key, open: 0, target: 0.3, delay: 8, mood: "calm", dist: S && S.days ? S.days[S.day].dist : "old" }, o || {}); return sc; }
 
 // ---------- интерфейс ----------
 function hud() {
@@ -243,7 +254,7 @@ function hud() {
 }
 function where() {
   const st = S.sched[S.day][S.step];
-  $("#whereL").textContent = `День ${S.day + 1}/4 · ${DISTRICTS[DAYS[S.day].dist].name}`;
+  $("#whereL").textContent = `Смена ${CAREER.shifts + 1} · ${DISTRICTS[S.days[S.day].dist].name}`;
   $("#whereR").textContent = S.phase === "morning" ? "Утро" : st ? st.time : "Вечер";
 }
 function setActions(list) {
@@ -269,23 +280,36 @@ function menu() {
   if (!Cloud.user) return landing();
   S = null; sc = { kind: "street", key: "menu", dist: "old" };
   $("#hud").innerHTML = ""; $("#whereL").textContent = "Заречинск"; $("#whereR").textContent = "ОПВ № 7";
+  const rk = rankOf(CAREER.xp), cur = RANKS[rk], nx = RANKS[rk + 1], pct = nx ? Math.floor((CAREER.xp - cur.xp) / (nx.xp - cur.xp) * 100) : 100;
   panel(`<h2>ПРИСТАВ: СМЕНА</h2>
-    <p>Неделя пристава в Заречинске: четыре района, двенадцать должников, суд и начальник, который звонит вовремя.</p>
-    <p class="who">Все персонажи и организации вымышлены. 16+: чёрный юмор, без жестокости.${settings.best ? " Рекорд: " + settings.best + " из 100." : ""}</p>`);
-  const saved = loadSave(), list = [], can = saved && !saved.over && saved.day < DAYS.length;
-  $("#panel").insertAdjacentHTML("beforeend", `<p class="who acc">Профиль: <b>${esc(Cloud.user)}</b> · сохранение в облаке</p>`);
-  if (can) list.push({ label: "Продолжить: день " + (saved.day + 1), cls: "primary", fn: () => { S = saved; enteredKey = ""; run(); } });
-  list.push({ label: can ? "Новая неделя" : "Начать неделю", cls: can ? "" : "primary", fn: () => { S = fresh(); enteredKey = ""; run(); } });
+    <p><b>${esc(cur.n)}</b> · ${esc(Cloud.user)}</p>
+    <div class="bars"><div class="bar"><span>Опыт</span><b>${CAREER.xp}</b><i><span style="width:${pct}%"></span></i></div></div>
+    <p class="who">${nx ? "До звания «" + esc(nx.n) + "»: " + (nx.xp - CAREER.xp) + " оп." : "Высшее звание."} Смен: ${CAREER.shifts} · Деньги: ${esc(fmt(CAREER.money))} · Лучший результат: ${settings.best || 0} из 100.</p>
+    <p class="who">Смена занимает 5–10 минут. Район и дела каждый раз новые, с ростом звания открываются новые районы.</p>`);
+  const sv = loadSave(), cont = sv && sv.shift && !sv.shift.over, list = [];
+  if (cont) list.push({ label: "Продолжить смену", cls: "primary", fn: () => { S = sv.shift; Object.assign(CASE, S.gen || {}); enteredKey = ""; run(); } });
+  list.push({ label: cont ? "Начать новую смену" : "Начать смену", cls: cont ? "" : "primary", fn: startShift });
+  list.push({ label: "Склад и снаряжение", fn: shop });
   list.push({ label: "Таблица рекордов", fn: board });
   list.push({ label: "Как играть", fn: howTo });
   list.push({ label: "Звук: " + (settings.sound ? "включён" : "выключен"), fn: () => { settings.sound = !settings.sound; writeSettings(); menu(); } });
+  list.push({ label: "Музыка: " + (settings.music ? "включена" : "выключена"), fn: () => { settings.music = !settings.music; writeSettings(); Music.sync(); menu(); } });
   list.push({ label: "Выйти из профиля", fn: logout });
+  setActions(list);
+}
+function startShift() { S = fresh(); enteredKey = ""; run(); }
+function shop() {
+  sc = { kind: "street", key: "shop", dist: "old" };
+  panel(`<h2>СКЛАД</h2><p class="who">Деньги: ${esc(fmt(CAREER.money))}. Снаряжение действует во всех сменах.</p>` +
+    UPGRADES.map((u) => `<div class="note"><b>${esc(u.n)}</b>${hasUp(u.id) ? " (куплено)" : " · " + esc(fmt(u.cost))}<br>${esc(u.d)}</div>`).join(""));
+  const list = UPGRADES.filter((u) => !hasUp(u.id)).map((u) => ({ label: "Купить: " + u.n + " — " + fmt(u.cost), disabled: CAREER.money < u.cost, fn: () => { CAREER.money -= u.cost; CAREER.up[u.id] = 1; writeSave(); Snd.play("coin"); shop(); } }));
+  list.push({ label: "Назад", cls: "primary", fn: menu });
   setActions(list);
 }
 function logout() {
   Cloud.signOut();
   try { localStorage.removeItem(SAVE); localStorage.removeItem(SET); } catch (e) {}
-  settings.sound = true; settings.best = 0; $("#snd").textContent = "♪";
+  settings.sound = true; settings.music = true; settings.best = 0; CAREER = newCareer(); Music.stop(); $("#snd").textContent = "♪";
   menu();
 }
 // облако -> устройство после входа: сохранение из облака главнее, пустое облако получает то, что уже есть на устройстве
@@ -293,7 +317,7 @@ async function syncAfterLogin() {
   try {
     const row = await Cloud.pull();
     if (row) {
-      if (row.data && row.data.v === 2) localStorage.setItem(SAVE, JSON.stringify(row.data));
+      if (row.data && row.data.v === 3) { localStorage.setItem(SAVE, JSON.stringify(row.data)); CAREER = Object.assign(newCareer(), row.data.career || {}); }
       const cs = row.settings || {};
       if (typeof cs.sound === "boolean") settings.sound = cs.sound;
       settings.best = Math.max(settings.best || 0, cs.best || 0);
@@ -335,11 +359,10 @@ function board() {
 function howTo() {
   sc = { kind: "street", key: "how", dist: "old" };
   panel(`<h2>КАК ИГРАТЬ</h2>
-    <p>Четыре дня, три должника в день. У каждого три шага: поговорить у двери, сверить документы, описать имущество.</p>
-    <p>Нельзя изымать защищённое законом (жильё, бытовое, лекарства, детское, орудия труда) и чужое. Следите за документами: бывает тёзка, бывает уже оплаченный долг.</p>
-    <p>На входе в суд спросите о цели визита и о запрещённом, посмотрите сумку. Рамка молчит не всегда честно: при подозрении проводите личный обыск. Найденное оформляйте протоколом. Пропустите опасного человека, и пострадают судья, заседатели, участники процесса или граждане.</p>
-    <p>Между делами звонят, просят и подсказывают. Решения копятся и влияют на конец недели.</p>
-    <p class="who">Каждое утро итоги: премия, замечание или выговор. Три выговора или лавина жалоб: увольнение.</p>`);
+    <p>Одна смена: три должника, дежурство на входе в суд, звонок начальника и пара событий. Минут на пять-десять. За смену вы получаете опыт, премию и звание.</p>
+    <p>У должника три шага: поговорить, сверить документы, описать имущество. Нельзя изымать защищённое законом (жильё, лекарства, детское, орудия труда) и чужое. Бывает тёзка и уже оплаченный долг.</p>
+    <p>На входе в суд спросите о цели визита и о запрещённом, посмотрите сумку и коробки. Рамка молчит не всегда честно: при подозрении проводите личный обыск. Найденное оформляйте протоколом. Пропустите опасного человека, и пострадают судья, заседатели, участники процесса или граждане.</p>
+    <p class="who">Деньги тратьте на складе: справочник, детектор, напарник, машина. Три провальные смены подряд ведут к понижению.</p>`);
   setActions([{ label: "Назад", cls: "primary", fn: menu }]);
 }
 
@@ -362,7 +385,7 @@ function onEnter(st) {
 function next() { S.step += 1; S.phase = "start"; S.picks = []; S.vis = 0; S.q = {}; S.note = ""; S.result = null; S.tainted = false; run(); }
 
 function morning() {
-  const d = DAYS[S.day], D = DISTRICTS[d.dist]; scn("street", "m" + S.day, { dist: d.dist });
+  const d = S.days[S.day], D = DISTRICTS[d.dist]; scn("street", "m" + S.day, { dist: d.dist });
   let html = `<h2>${d.name}</h2>`;
   if (S.review) {
     const r = S.review, rn = { bonus: ["ПРЕМИЯ 3 000 ₽", "ok", "Начальник кисло улыбнулся и подписал бумагу."], rep: ["ВЫГОВОР", "bad", "Лыков зачитал приказ, не поднимая глаз."], note: ["ЗАМЕЧАНИЕ УСТНОЕ", "ok", "«Работайте». Ни хвалы, ни наказания."] }[r.kind];
@@ -372,7 +395,7 @@ function morning() {
   if (tw) html += `<div class="note">${esc(tw)}</div>`;
   html += `<p class="who">Район: ${esc(D.name)}. ${esc(D.blurb)}</p><p>План на день: <b>${esc(fmt(S.plans[S.day]))}</b>. Три адреса, дежурство в суде и телефон, который не замолкает.</p>`;
   panel(html);
-  setActions([{ label: S.day ? "На смену" : "Выйти на смену", cls: "primary", fn: () => { S.phase = "start"; S.step = 0; S.dayStart = { cash: S.stats.cash, law: S.stats.law, complaints: S.stats.complaints, inc: S.incidents || 0 }; run(); } }]);
+  setActions([{ label: "Выйти на смену", cls: "primary", fn: () => { S.phase = "start"; S.step = 0; S.dayStart = { cash: S.stats.cash, law: S.stats.law, complaints: S.stats.complaints, inc: S.incidents || 0 }; run(); } }]);
 }
 function dayDone() {
   const d = S.day, a = S.stats, ds = S.dayStart, gained = a.cash - ds.cash, comp = a.complaints - ds.complaints, law = a.law - ds.law, plan = S.plans[d];
@@ -381,15 +404,13 @@ function dayDone() {
   if (gained >= plan && comp <= 1 && law >= -1 && !inc) kind = "bonus"; else if (gained < plan * 0.4 || comp >= 4 || law <= -4 || inc >= 2) kind = "rep";
   if (kind === "bonus") { S.salary += 3000; stat("boss", 1); Snd.play("good"); } else if (kind === "rep") { S.reprimands += 1; stat("boss", -1); Snd.play("bad"); }
   S.review = { day: d, gained, plan, comp, law, kind, inc };
-  if (S.reprimands >= 3 || a.complaints >= 14 || a.law <= -12 || (S.incidents || 0) >= 4) S.over = "fired";
-  else if (d + 1 >= DAYS.length) S.over = "end";
-  else { S.day += 1; S.step = 0; S.phase = "morning"; }
+  S.over = (a.complaints >= 8 || a.law <= -8 || (S.incidents || 0) >= 3) ? "fired" : "end";
   enteredKey = ""; run();
 }
 
 // ----- должник -----
 function debtScreen(c) {
-  const sk = "d" + c.id; const doorScene = () => scn("door", sk, { p: c.person, chain: true, dist: DAYS[S.day].dist });
+  const sk = "d" + c.id; const doorScene = () => scn("door", sk, { p: c.person, chain: true, dist: S.days[S.day].dist });
   if (S.phase === "start") {
     doorScene();
     panel(`<h2>${esc(c.name)}</h2><p class="who">Долг: ${esc(fmt(c.debt))} · Взыскатель: ${esc(c.creditor)}</p><p>${esc(c.intro)}</p><q>${esc(c.line)}</q>`);
@@ -399,7 +420,7 @@ function debtScreen(c) {
       { label: "Надавить: «Откройте или взломаем»", cls: "danger", fn: () => tone(c, "hard") }
     ]);
   } else if (S.phase === "talk") {
-    doorScene(); panel(`<h2>${esc(c.name)}</h2><p>${esc(S.toneText)}</p><div class="note">Заметка: ${esc(c.hint)}</div>`);
+    doorScene(); panel(`<h2>${esc(c.name)}</h2><p>${esc(S.toneText)}</p><div class="note">Заметка: ${esc(c.hint)}</div>${hasUp("handbook") ? `<div class="note">Справочник: защищено законом вещей: ${c.items.filter((i) => i.exempt || i.foreign).length}.${c.trap ? " В бумагах что-то не так." : ""}</div>` : ""}`);
     setActions([{ label: "К документам", cls: "primary", fn: () => { S.phase = "docs"; run(); } }]);
   } else if (S.phase === "docs") { doorScene(); sc.target = 1; docs(c); }
   else if (S.phase === "inspect") inspect(c);
@@ -426,17 +447,17 @@ function docs(c) {
       else if (c.trap === "paid") { stat("law", -1); S.tainted = true; S.note = "Вы не заметили чек: долг уже погашен. Любое изъятие теперь будет незаконным."; }
       S.phase = "inspect"; run(); } },
     { label: "Это не тот человек", cls: "danger", fn: () => {
-      if (c.trap === "name") { stat("law", 2); stat("heart", 1); S.log.push({ id: c.id, out: "m" }); S.result = { title: "ТЁЗКА НАЙДЕН", text: "Вы вернули дело в банк: это другой Лебедев. Должник пожал вам руку и впервые за неделю улыбнулся.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; sc.mood = "happy"; Snd.play("good"); }
+      if (c.trap === "name") { stat("law", 2); stat("heart", 1); S.log.push({ id: c.id, out: "m" }); S.result = { title: "ТЁЗКА НАЙДЕН", text: "Вы вернули дело: это другой человек, тёзка. Должник пожал вам руку и впервые за долгое время улыбнулся.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; sc.mood = "happy"; Snd.play("good"); }
       else { stat("complaints", 1); stat("law", -1); S.note = "Вы зря заподозрили подлог, потеряли время и получили выговор." + (c.trap === "paid" ? " Долг, между прочим, погашен." : ""); if (c.trap === "paid") S.tainted = true; S.phase = "inspect"; Snd.play("bad"); }
       run(); } },
     { label: "Долг уже оплачен", fn: () => {
-      if (c.trap === "paid") { stat("law", 2); stat("heart", 1); S.log.push({ id: c.id, out: "m" }); S.result = { title: "ДОЛГ ПОГАШЕН", text: "Чек настоящий: МФО зачло платёж на другой договор. Вы вернули дело на пересмотр. Должник перекрестился и угостил вас чаем.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; sc.mood = "happy"; Snd.play("good"); }
+      if (c.trap === "paid") { stat("law", 2); stat("heart", 1); S.log.push({ id: c.id, out: "m" }); S.result = { title: "ДОЛГ ПОГАШЕН", text: "Чек настоящий: взыскатель зачёл платёж на другой договор. Вы вернули дело на пересмотр. Должник перекрестился и угостил вас чаем.", cash: 0, tags: [["ok", "Закон +2"], ["ok", "Совесть +1"]] }; S.phase = "result"; sc.mood = "happy"; Snd.play("good"); }
       else { stat("complaints", 1); stat("law", -1); S.note = "Бумага не закрывает долг: сумма или период не те. Взыскатель недоволен."; if (c.trap === "name") S.tainted = true; S.phase = "inspect"; Snd.play("bad"); }
       run(); } }
   ]);
 }
 function inspect(c) {
-  scn("room", "r" + c.id, { dist: DAYS[S.day].dist });
+  scn("room", "r" + c.id, { dist: S.days[S.day].dist });
   panel(`<h2>ОПИСЬ ИМУЩЕСТВА</h2>${S.note ? `<div class="note">${esc(S.note)}</div>` : ""}
     <p>Долг: ${esc(fmt(c.debt))}. Выберите вещи для изъятия, нажатие показывает комментарий.</p>
     <div class="grid" id="grid"></div><div class="note" id="note">Нажмите на вещь, чтобы осмотреть её.</div><p id="sum"></p>`);
@@ -503,7 +524,7 @@ function resultScreen() {
 
 // ----- события -----
 function eventScreen(e, st) {
-  const dist = DAYS[S.day].dist, kind = e.src === "boss" ? "call" : "stair";
+  const dist = S.days[S.day].dist, kind = e.src === "boss" ? "call" : "stair";
   const o = { p: e.look, dist, dog: !!e.dog, ringing: e.src === "boss" && S.phase === "start" };
   const s = scn(kind, "e" + e.id, o); if (S.phase === "evres") s.ringing = false;
   if (S.phase === "evres") {
@@ -527,6 +548,7 @@ function courtScreen(st) {
   if (S.phase === "start") {
     s.beeping = v.beep && !broken; if (s.beeping && !q.beeped) { q.beeped = true; setTimeout(() => Snd.play("beep"), 200); }
     let html = `<h2>${esc(v.name)}</h2><p>${esc(v.intro)}</p><p class="who">Рамка: ${broken ? "сегодня сломана, ей нельзя верить." : v.beep ? "ПИЩИТ." : "молчит."}</p>`;
+    if (hasUp("detector")) html += `<p class="who">Детектор: ${detectorSays(v, S.seed)}</p>`;
     if (S.vis === 0 && st.twist === "trial") html += `<p class="who">Сегодня громкое дело: народу больше обычного.</p>`;
     if (q.purpose) html += `<p class="who">Цель визита?</p><q>${esc(v.say)}</q>`;
     if (q.ask) html += `<p class="who">Есть запрещённые предметы?</p><q>${esc(askAnswer(v))}</q>`;
@@ -572,7 +594,7 @@ function incident(v, lead) {
   S.incidents = (S.incidents || 0) + 1;
   let h = 0; for (const ch of v.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const harm = HARM[(h + (S.seed >>> 0) + S.day) % HARM.length];
-  return { fx: { safety: -2, law: -1, complaints: 1 }, title: "ИНЦИДЕНТ", text: lead + " " + harm.text + " " + (v.inc || "Охрана смотрит на вас молча.") };
+  return { fx: { safety: hasUp("partner") ? -1 : -2, law: -1, complaints: 1 }, title: "ИНЦИДЕНТ", text: lead + " " + harm.text + " " + (v.inc || "Охрана смотрит на вас молча.") };
 }
 function cOut(v, kind) {
   let fx = {}, text = "", title = "РЕЗУЛЬТАТ";
@@ -606,7 +628,7 @@ function cOut(v, kind) {
   const tags = applyFx(fx); S.result = { title, text, tags }; S.phase = "cres"; sfxFor(tags, 0); run();
 }
 
-// ----- финал -----
+// ----- финал смены -----
 function endScreen() {
   scn("desk", "end", {}); const a = S.stats, planAll = S.plans.reduce((x, y) => x + y, 0);
   const cash = Math.min(100, Math.round(a.cash / planAll * 100)), law = Math.max(0, Math.min(100, 50 + a.law * 4)), heart = Math.max(0, Math.min(100, 50 + a.heart * 5)), safe = Math.max(0, Math.min(100, 50 + a.safety * 12));
@@ -616,21 +638,25 @@ function endScreen() {
   else if (cash >= 80 && law >= 60 && heart >= 55) end = "model"; else if (cash >= 80 && heart < 40) end = "iron";
   else if (heart >= 65 && cash < 60) end = "human"; else if (cash < 35) end = "weak";
   const [title, text] = ENDINGS[end];
+  if (!S.reward) {
+    S.reward = settleShift(S, score); S.score = score;
+    if (score > (settings.best || 0)) { settings.best = score; writeSettings(); }
+    Cloud.submitScore(score, S.day, end).catch(() => {}); writeSave();
+  }
+  const rw = S.reward, rv = S.review || {}, rn = { bonus: "Премия 3 000 ₽", rep: "Выговор", note: "Замечание устное" }[rv.kind] || "";
   const bar = (n, v) => `<div class="bar ${v < 40 ? "low" : ""}"><span>${esc(n)}</span><b>${v}%</b><i><span style="width:${v}%"></span></i></div>`;
   const fates = S.log.map((l) => { const c = CASE[l.id]; return `<li><b>${esc(c.name.split(" ").slice(0, 2).join(" "))}.</b> ${esc(l.out === "m" ? c.fate.m : c.fate.s)}</li>`; }).join("");
-  if (score > (settings.best || 0)) { settings.best = score; writeSettings(); }
-  Cloud.submitScore(score, S.day, end).catch(() => {});
   panel(`<h2>${esc(title)}</h2><p>${esc(text)}</p>
-    <div class="bars">${bar("План недели: " + fmt(a.cash) + " из " + fmt(planAll), cash)}${bar("Законность", law)}${bar("Совесть", heart)}${bar("Безопасность суда", safe)}</div>
-    <p class="who">Оценка: ${score} из 100 · Жалоб: ${a.complaints} · Премий: ${fmt(S.salary)} · Выговоров: ${S.reprimands} · Протоколов: ${S.protocols || 0} · Инцидентов на входе: ${S.incidents || 0}</p>
-    ${S.epi.length ? `<div class="note"><b>Ваши решения.</b><ul>${S.epi.slice(0, 8).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    <div class="bars">${bar("План смены: " + fmt(a.cash) + " из " + fmt(planAll), cash)}${bar("Законность", law)}${bar("Совесть", heart)}${bar("Безопасность суда", safe)}</div>
+    <div class="note"><b>Итоги смены.</b> Оценка ${score} из 100${rn ? " · " + esc(rn) : ""}<br>Опыт: +${rw.xp} · Деньги: +${esc(fmt(rw.money))}<br>Звание: <b>${esc(RANKS[rw.rank1].n)}</b>${rw.rankUp ? " (повышение!)" : ""}${rw.demoted ? " (понижение за три провала подряд)" : ""}${rw.newDist ? "<br>Открыт новый район: " + esc(DISTRICTS[rw.newDist].name) : ""}</div>
+    <p class="who">Жалоб: ${a.complaints} · Протоколов: ${S.protocols || 0} · Инцидентов на входе: ${S.incidents || 0}</p>
     ${fates ? `<div class="note"><b>Что стало с людьми.</b><ul>${fates}</ul></div>` : ""}`);
-  Snd.play(end === "model" || end === "avg" ? "good" : "bad");
-  setActions([{ label: "Сыграть ещё раз", cls: "primary", fn: () => { clearSave(); S = fresh(); enteredKey = ""; run(); } }, { label: "В меню", fn: () => { clearSave(); menu(); } }]);
-  clearSave();
+  Snd.play(end === "model" || end === "avg" || end === "human" ? "good" : "bad");
+  setActions([{ label: "Новая смена", cls: "primary", fn: startShift }, { label: "Склад и снаряжение", fn: shop }, { label: "В меню", fn: menu }]);
 }
 
-$("#snd").addEventListener("click", () => { settings.sound = !settings.sound; writeSettings(); $("#snd").textContent = settings.sound ? "♪" : "×"; if (!S) menu(); });
-$("#snd").textContent = settings.sound ? "♪" : "×";
+$("#snd").addEventListener("click", () => { const on = !(settings.sound || settings.music); settings.sound = on; settings.music = on; writeSettings(); Music.sync(); $("#snd").textContent = on ? "♪" : "×"; if (!S) menu(); });
+$("#snd").textContent = settings.sound || settings.music ? "♪" : "×";
+{ const sv = loadSave(); if (sv && sv.career) CAREER = Object.assign(newCareer(), sv.career); }
 setInterval(render, 83);
 menu();

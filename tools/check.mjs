@@ -81,7 +81,23 @@ for (const v of data.VISITORS) if (v.sealed && !v.boxOpen) errs.push(v.id + ": �
 if (!data.HARM || data.HARM.length < 4) errs.push("HARM: нужно 4 пострадавших");
 if (data.VISITORS.filter((v) => v.hide).length < 3) errs.push("мало посетителей с тайником");
 for (const e of data.EVENTS) if (e.choices.length < 3) errs.push(e.id + ": мало выборов");
-if (errs.length) { console.error("ДАННЫЕ:\n" + errs.join("\n")); process.exit(1); }
+// генератор должников: проверка на множестве случайных дел
+{
+  const gen = vm.runInContext(`(function () { const out = [], r = rng(777); for (let i = 0; i < 800; i++) { const d = ["old", "shore", "zone", "dacha"][i % 4]; out.push(genCase(r, d, i % 6, {})); } return out; })()`, ctx);
+  const names = new Set();
+  for (const c of gen) {
+    names.add(c.name);
+    if (c.items.length < 4) errs.push("gen " + c.id + ": мало вещей (" + c.items.length + ")");
+    if (!c.items.some((i) => i.exempt)) errs.push("gen " + c.id + ": нет защищённой вещи");
+    if (!c.trap && !c.items.some((i) => !i.exempt)) errs.push("gen " + c.id + ": нечего изымать");
+    for (const i of c.items) { if (!data.ICONS[i.k]) errs.push("gen: нет значка " + i.k); if (!(i.w > 0) && i.k !== "cat") errs.push("gen: цена " + i.n); }
+    if (/undefined|NaN/.test(JSON.stringify(c))) errs.push("gen " + c.id + ": undefined в данных");
+    if (c.trap === "name" && !c.passport) errs.push("gen: нет паспорта");
+    if (c.trap === "paid" && !c.receipt) errs.push("gen: нет чека");
+  }
+  console.log("генератор: ок (800 дел, уникальных имён " + names.size + ")");
+}
+if (errs.length) { console.error("ДАННЫЕ:\n" + [...new Set(errs)].slice(0, 20).join("\n")); process.exit(1); }
 console.log("данные: ok (должников " + data.CASES.length + ", посетителей " + data.VISITORS.length + ", событий " + data.EVENTS.length + ")");
 
 // автоигра
@@ -93,7 +109,7 @@ for (let g = 0; g < N; g++) {
   while (guard++ < 600) {
     const over = vm.runInContext("S && S.over", ctx);
     const acts = vm.runInContext("__acts", ctx);
-    if (over && acts.some((a) => a.label.includes("Сыграть"))) break;
+    if (over && acts.some((a) => a.label.includes("Новая смена"))) break;
     if (vm.runInContext("S.phase", ctx) === "inspect" && rnd() < 0.9) {
       const n = vm.runInContext("CASE[S.sched[S.day][S.step].id].items.length", ctx);
       const picks = []; for (let i = 0; i < n; i++) if (rnd() < 0.4) picks.push(i);
